@@ -17,4 +17,4 @@
 
 ## 📌 Giới Thiệu Dự Án (Overview)
 
-Hệ thống quản lý phòng gym và hỗ trợ huấn luyện viên cá nhân (PT) lên lịch, theo dõi lộ trình tập luyện và quản lý hội viên hiệu quả.
+Hệ thống quản lý phòng GYM và hỗ trợ huấn luyện viên cá nhân (PT) lên lịch, theo dõi lộ trình tập luyện và quản lý hội viên hiệu quả.
