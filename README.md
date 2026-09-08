@@ -8,7 +8,7 @@
 ## 👥 Thành Viên Thực Hiện (Members)
 
 | STT | Họ và Tên | Email Sinh Viên | Github |
-| :---: | :--- | :--- |
+| :---: | :--- | :--- | :--- |
 | 1 | Lê Hoàng Tiến | [n25dcat050@student.ptithcm.edu.vn](mailto:n25dcat050@student.ptithcm.edu.vn) | TienVN6222 |
 | 2 | Lê Hòa Thuận | [n25dcat110@student.ptithcm.edu.vn](mailto:n25dcat110@student.ptithcm.edu.vn) | conphencoll115-bot |
 | 3 | Trần Minh Tiến | [n25dcat111@student.ptithcm.edu.vn](mailto:n25dcat111@student.ptithcm.edu.vn) | mtgin2312 |
