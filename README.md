@@ -1,4 +1,4 @@
-# Hệ Thống Quản Lý Hội Viên & Lập Kế Hoạch Huấn Luyện Viên Cá Nhân (Gym Membership & PT Planner)
+# Gym Membership & PT Planner(Hệ Thống Quản Lý Hội Viên & Lập Kế Hoạch Huấn Luyện Viên Cá Nhân )
 
 **Mã Đề Tài (Project ID):** `09`  
 **Tên Nhóm (Team Name):** `G9`
