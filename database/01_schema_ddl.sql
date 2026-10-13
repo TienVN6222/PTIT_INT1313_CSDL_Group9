@@ -355,3 +355,58 @@ CREATE INDEX idx_class_schedule_room ON class_schedule (room_id);
 CREATE INDEX idx_class_schedule_dates ON class_schedule (start_time, end_time);
 CREATE INDEX idx_equipment_status ON equipment (status);
 CREATE INDEX idx_maintenance_log_equipment ON maintenance_log (equipment_id);
+
+
+-- 1.1. Chi hoi vien co ho so hoi vien moi duoc dang ky goi tap
+ALTER TABLE member_subscription
+DROP CONSTRAINT fk_subscription_member;
+
+ALTER TABLE member_subscription
+ADD CONSTRAINT fk_subscription_member
+FOREIGN KEY (member_user_id)
+REFERENCES member_profile (user_id)
+ON DELETE RESTRICT;
+
+
+-- 1.2. Chi huan luyen vien co ho so PT moi duoc phan cong lop
+ALTER TABLE class_schedule
+DROP CONSTRAINT fk_class_trainer;
+
+ALTER TABLE class_schedule
+ADD CONSTRAINT fk_class_trainer
+FOREIGN KEY (trainer_user_id)
+REFERENCES trainer_profile (user_id)
+ON DELETE RESTRICT;
+
+
+-- 1.3. Chi hoi vien co ho so hoi vien moi duoc dat lich PT
+ALTER TABLE pt_booking
+DROP CONSTRAINT fk_booking_member;
+
+ALTER TABLE pt_booking
+ADD CONSTRAINT fk_booking_member
+FOREIGN KEY (member_user_id)
+REFERENCES member_profile (user_id)
+ON DELETE RESTRICT;
+
+
+-- 1.4. Chi huan luyen vien co ho so PT moi duoc nhan lich
+ALTER TABLE pt_booking
+DROP CONSTRAINT fk_booking_trainer;
+
+ALTER TABLE pt_booking
+ADD CONSTRAINT fk_booking_trainer
+FOREIGN KEY (trainer_user_id)
+REFERENCES trainer_profile (user_id)
+ON DELETE RESTRICT;
+
+
+-- 1.5. Chi nhan vien co ho so nhan vien moi duoc ghi nhan bao tri
+ALTER TABLE maintenance_log
+DROP CONSTRAINT fk_maintenance_staff;
+
+ALTER TABLE maintenance_log
+ADD CONSTRAINT fk_maintenance_staff
+FOREIGN KEY (staff_user_id)
+REFERENCES staff_profile (user_id)
+ON DELETE RESTRICT;
