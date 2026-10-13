@@ -324,6 +324,13 @@ INSERT INTO class_schedule (class_id, trainer_user_id, room_id, class_name, star
 
 ALTER SEQUENCE class_schedule_class_id_seq RESTART WITH 21;
 
+-- Lưu số lượng mục tiêu để tạo đủ bản ghi đăng ký thực tế bên dưới.
+-- Nhờ đó current_enrolled vẫn phản ánh đúng các mức fill rate dùng kiểm thử.
+DROP TABLE IF EXISTS pg_temp.class_fill_targets;
+CREATE TEMP TABLE class_fill_targets AS
+SELECT class_id, current_enrolled AS target_count
+FROM class_schedule;
+
 -- ----------------------------------------------------------------------------
 -- 12. ĐĂNG KÝ LỚP HỌC (class_enrollment)
 -- ----------------------------------------------------------------------------
@@ -364,7 +371,59 @@ INSERT INTO class_enrollment (enrollment_id, subscription_id, class_id, enrollme
 (34, 7, 20, '2026-10-19 11:00:00', 'Cancelled'),
 (35, 13, 20, '2026-10-19 12:00:00', 'Enrolled');
 
-ALTER SEQUENCE class_enrollment_enrollment_id_seq RESTART WITH 36;
+-- Bổ sung bản ghi đăng ký để số liệu khớp với current_enrolled đã thiết kế.
+WITH target_gaps AS (
+    SELECT
+        t.class_id,
+        t.target_count,
+        GREATEST(
+            t.target_count - COUNT(ce.enrollment_id) FILTER (
+                WHERE ce.status IN ('Enrolled', 'Attended')
+            ),
+            0
+        ) AS needed
+    FROM class_fill_targets AS t
+    LEFT JOIN class_enrollment AS ce ON ce.class_id = t.class_id
+    GROUP BY t.class_id, t.target_count
+), candidates AS (
+    SELECT
+        g.class_id,
+        g.needed,
+        ms.subscription_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY g.class_id ORDER BY ms.subscription_id
+        ) AS class_row
+    FROM target_gaps AS g
+    JOIN member_subscription AS ms ON g.needed > 0
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM class_enrollment AS ce
+        WHERE ce.class_id = g.class_id
+          AND ce.subscription_id = ms.subscription_id
+    )
+), to_insert AS (
+    SELECT
+        class_id,
+        subscription_id,
+        ROW_NUMBER() OVER (ORDER BY class_id, subscription_id) + 35 AS enrollment_id
+    FROM candidates
+    WHERE class_row <= needed
+)
+INSERT INTO class_enrollment
+    (enrollment_id, subscription_id, class_id, enrollment_date, status)
+SELECT
+    ti.enrollment_id,
+    ti.subscription_id,
+    ti.class_id,
+    cs.start_time - INTERVAL '1 day',
+    CASE WHEN cs.start_time < CURRENT_TIMESTAMP THEN 'Attended' ELSE 'Enrolled' END
+FROM to_insert AS ti
+JOIN class_schedule AS cs ON cs.class_id = ti.class_id;
+
+SELECT setval(
+    'class_enrollment_enrollment_id_seq',
+    (SELECT COALESCE(MAX(enrollment_id), 1) FROM class_enrollment)
+);
 
 -- ----------------------------------------------------------------------------
 -- 13. CA TẬP HUẤN LUYỆN VIÊN CÁ NHÂN 1-1 (pt_booking)

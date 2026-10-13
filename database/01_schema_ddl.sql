@@ -6,6 +6,9 @@
 -- TIÊU CHUẨN: SQLStyle.guide (Simon Holywell) / ISO/IEC 11179 Metadata Registry
 -- ============================================================================
 
+-- Extension phục vụ kiểm tra lịch bị chồng lấn trong PostgreSQL
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 -- Xóa các bảng cũ theo thứ tự phụ thuộc khóa ngoại nếu đã tồn tại
 DROP TABLE IF EXISTS maintenance_log CASCADE;
 DROP TABLE IF EXISTS equipment_reservation CASCADE;
@@ -47,21 +50,27 @@ CREATE TABLE user_account (
     CONSTRAINT chk_user_account_status CHECK (status IN ('Active', 'Inactive', 'Suspended'))
 );
 
--- Ràng buộc BR-03: Độ tuổi hội viên khi đăng ký hồ sơ phải từ 12 tuổi trở lên
+-- BR-03: kiểm tra tuổi đối với hội viên, không áp dụng mặc định cho mọi vai trò.
 CREATE OR REPLACE FUNCTION trg_fn_check_user_age()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_dob DATE;
 BEGIN
-    IF NEW.dob > (CURRENT_DATE - INTERVAL '12 years') THEN
-        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-03: Người dùng phải đủ từ 12 tuổi trở lên (Ngày sinh cung cấp: %)', NEW.dob;
+    SELECT dob INTO v_dob
+    FROM user_account
+    WHERE user_id = NEW.user_id;
+
+    IF v_dob IS NULL THEN
+        RAISE EXCEPTION 'Không tìm thấy ngày sinh của tài khoản %', NEW.user_id;
     END IF;
+
+    IF v_dob > (CURRENT_DATE - INTERVAL '12 years') THEN
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-03: Hội viên phải đủ 12 tuổi trở lên (Ngày sinh: %)', v_dob;
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_check_user_dob
-BEFORE INSERT OR UPDATE OF dob ON user_account
-FOR EACH ROW
-EXECUTE FUNCTION trg_fn_check_user_age();
 
 -- Bảng 2: role (Danh mục các vai trò trong hệ thống - BR-22)
 CREATE TABLE role (
@@ -116,6 +125,27 @@ CREATE TABLE member_profile (
         REFERENCES user_account (user_id) ON DELETE CASCADE
 );
 
+CREATE OR REPLACE FUNCTION trg_fn_check_member_dob_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM member_profile WHERE user_id = NEW.user_id)
+       AND NEW.dob > (CURRENT_DATE - INTERVAL '12 years') THEN
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-03: Hội viên phải đủ 12 tuổi trở lên (Ngày sinh: %)', NEW.dob;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_member_dob
+BEFORE INSERT OR UPDATE OF user_id ON member_profile
+FOR EACH ROW
+EXECUTE FUNCTION trg_fn_check_user_age();
+
+CREATE TRIGGER trg_check_user_dob_for_member
+BEFORE UPDATE OF dob ON user_account
+FOR EACH ROW
+EXECUTE FUNCTION trg_fn_check_member_dob_update();
+
 -- Bảng 7: trainer_profile (Hồ sơ Huấn luyện viên thể hình - BR-11)
 CREATE TABLE trainer_profile (
     user_id        INT PRIMARY KEY,
@@ -167,8 +197,9 @@ CREATE TABLE member_subscription (
     is_recurring       BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at         TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_member_subscription PRIMARY KEY (subscription_id),
+    CONSTRAINT uq_subscription_member UNIQUE (subscription_id, member_user_id),
     CONSTRAINT fk_subscription_member FOREIGN KEY (member_user_id)
-        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+        REFERENCES member_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_subscription_plan FOREIGN KEY (plan_id)
         REFERENCES membership_plan (plan_id) ON DELETE RESTRICT,
     CONSTRAINT chk_subscription_price CHECK (actual_price >= 0),
@@ -245,9 +276,17 @@ CREATE TABLE class_schedule (
     current_enrolled INT          NOT NULL DEFAULT 0,
     CONSTRAINT pk_class_schedule PRIMARY KEY (class_id),
     CONSTRAINT fk_class_trainer FOREIGN KEY (trainer_user_id)
-        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+        REFERENCES trainer_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_class_room FOREIGN KEY (room_id)
         REFERENCES facilities_room (room_id) ON DELETE RESTRICT,
+    CONSTRAINT ex_class_trainer_no_overlap EXCLUDE USING gist (
+        trainer_user_id WITH =,
+        tsrange(start_time, end_time, '[)') WITH &&
+    ),
+    CONSTRAINT ex_class_room_no_overlap EXCLUDE USING gist (
+        room_id WITH =,
+        tsrange(start_time, end_time, '[)') WITH &&
+    ),
     CONSTRAINT chk_class_time CHECK (end_time > start_time),
     CONSTRAINT chk_class_capacity CHECK (max_capacity > 0),
     CONSTRAINT chk_class_enrolled CHECK (current_enrolled >= 0),
@@ -270,6 +309,51 @@ CREATE TABLE class_enrollment (
     CONSTRAINT chk_enrollment_status CHECK (status IN ('Enrolled', 'Cancelled', 'Attended'))
 );
 
+-- Đồng bộ số hội viên đang đăng ký/tham dự với bảng class_enrollment.
+CREATE OR REPLACE FUNCTION fn_sync_class_enrollment_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        UPDATE class_schedule
+        SET current_enrolled = (
+            SELECT COUNT(*)
+            FROM class_enrollment
+            WHERE class_id = OLD.class_id
+              AND status IN ('Enrolled', 'Attended')
+        )
+        WHERE class_id = OLD.class_id;
+        RETURN OLD;
+    END IF;
+
+    UPDATE class_schedule
+    SET current_enrolled = (
+        SELECT COUNT(*)
+        FROM class_enrollment
+        WHERE class_id = NEW.class_id
+          AND status IN ('Enrolled', 'Attended')
+    )
+    WHERE class_id = NEW.class_id;
+
+    IF TG_OP = 'UPDATE' AND OLD.class_id <> NEW.class_id THEN
+        UPDATE class_schedule
+        SET current_enrolled = (
+            SELECT COUNT(*)
+            FROM class_enrollment
+            WHERE class_id = OLD.class_id
+              AND status IN ('Enrolled', 'Attended')
+        )
+        WHERE class_id = OLD.class_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sync_class_enrollment_count
+AFTER INSERT OR UPDATE OR DELETE ON class_enrollment
+FOR EACH ROW
+EXECUTE FUNCTION fn_sync_class_enrollment_count();
+
 -- Bảng 16: pt_booking (Lịch hẹn ca tập huấn luyện viên cá nhân 1-1 - BR-12, BR-17, BR-18, BR-25)
 CREATE TABLE pt_booking (
     booking_id      SERIAL,
@@ -283,11 +367,21 @@ CREATE TABLE pt_booking (
     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_pt_booking PRIMARY KEY (booking_id),
     CONSTRAINT fk_booking_member FOREIGN KEY (member_user_id)
-        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+        REFERENCES member_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_booking_trainer FOREIGN KEY (trainer_user_id)
-        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+        REFERENCES trainer_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_booking_subscription FOREIGN KEY (subscription_id)
         REFERENCES member_subscription (subscription_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_booking_subscription_member FOREIGN KEY (subscription_id, member_user_id)
+        REFERENCES member_subscription (subscription_id, member_user_id) ON DELETE RESTRICT,
+    CONSTRAINT ex_pt_trainer_no_overlap EXCLUDE USING gist (
+        trainer_user_id WITH =,
+        tsrange(start_time, end_time, '[)') WITH &&
+    ) WHERE (status <> 'Cancelled'),
+    CONSTRAINT ex_pt_member_no_overlap EXCLUDE USING gist (
+        member_user_id WITH =,
+        tsrange(start_time, end_time, '[)') WITH &&
+    ) WHERE (status <> 'Cancelled'),
     CONSTRAINT chk_pt_booking_time CHECK (end_time > start_time),
     CONSTRAINT chk_pt_booking_status CHECK (status IN ('Scheduled', 'Completed', 'Cancelled', 'No_Show'))
 );
@@ -331,7 +425,7 @@ CREATE TABLE maintenance_log (
     CONSTRAINT fk_maintenance_equipment FOREIGN KEY (equipment_id)
         REFERENCES equipment (equipment_id) ON DELETE RESTRICT,
     CONSTRAINT fk_maintenance_staff FOREIGN KEY (staff_user_id)
-        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+        REFERENCES staff_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_maintenance_cost CHECK (cost >= 0),
     CONSTRAINT chk_maintenance_status CHECK (status IN ('In_Progress', 'Completed', 'Cancelled')),
     CONSTRAINT chk_maintenance_time CHECK (end_time IS NULL OR end_time >= start_time)
@@ -355,58 +449,3 @@ CREATE INDEX idx_class_schedule_room ON class_schedule (room_id);
 CREATE INDEX idx_class_schedule_dates ON class_schedule (start_time, end_time);
 CREATE INDEX idx_equipment_status ON equipment (status);
 CREATE INDEX idx_maintenance_log_equipment ON maintenance_log (equipment_id);
-
-
--- 1.1. Chi hoi vien co ho so hoi vien moi duoc dang ky goi tap
-ALTER TABLE member_subscription
-DROP CONSTRAINT fk_subscription_member;
-
-ALTER TABLE member_subscription
-ADD CONSTRAINT fk_subscription_member
-FOREIGN KEY (member_user_id)
-REFERENCES member_profile (user_id)
-ON DELETE RESTRICT;
-
-
--- 1.2. Chi huan luyen vien co ho so PT moi duoc phan cong lop
-ALTER TABLE class_schedule
-DROP CONSTRAINT fk_class_trainer;
-
-ALTER TABLE class_schedule
-ADD CONSTRAINT fk_class_trainer
-FOREIGN KEY (trainer_user_id)
-REFERENCES trainer_profile (user_id)
-ON DELETE RESTRICT;
-
-
--- 1.3. Chi hoi vien co ho so hoi vien moi duoc dat lich PT
-ALTER TABLE pt_booking
-DROP CONSTRAINT fk_booking_member;
-
-ALTER TABLE pt_booking
-ADD CONSTRAINT fk_booking_member
-FOREIGN KEY (member_user_id)
-REFERENCES member_profile (user_id)
-ON DELETE RESTRICT;
-
-
--- 1.4. Chi huan luyen vien co ho so PT moi duoc nhan lich
-ALTER TABLE pt_booking
-DROP CONSTRAINT fk_booking_trainer;
-
-ALTER TABLE pt_booking
-ADD CONSTRAINT fk_booking_trainer
-FOREIGN KEY (trainer_user_id)
-REFERENCES trainer_profile (user_id)
-ON DELETE RESTRICT;
-
-
--- 1.5. Chi nhan vien co ho so nhan vien moi duoc ghi nhan bao tri
-ALTER TABLE maintenance_log
-DROP CONSTRAINT fk_maintenance_staff;
-
-ALTER TABLE maintenance_log
-ADD CONSTRAINT fk_maintenance_staff
-FOREIGN KEY (staff_user_id)
-REFERENCES staff_profile (user_id)
-ON DELETE RESTRICT;
