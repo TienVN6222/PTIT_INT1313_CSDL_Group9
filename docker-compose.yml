@@ -1,0 +1,55 @@
+services:
+  # ----------------------------------------------------------------------------
+  # CƠ SỞ DỮ LIỆU POSTGRESQL 16 (Môi trường Disposable, tự động khởi tạo)
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: fitzone_postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gym_management}
+      POSTGRES_USER: ${POSTGRES_USER:-gym_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gym_password_2026}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Tự động nạp DDL, DML Mock Data, và Triggers/Views khi container khởi động lần đầu
+      - ./database/01_schema_ddl.sql:/docker-entrypoint-initdb.d/01_schema_ddl.sql:ro
+      - ./database/02_mock_data.sql:/docker-entrypoint-initdb.d/02_mock_data.sql:ro
+      - ./database/04_triggers_views.sql:/docker-entrypoint-initdb.d/04_triggers_views.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gym_admin} -d ${POSTGRES_DB:-gym_management}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - fitzone_network
+
+  # ----------------------------------------------------------------------------
+  # ỨNG DỤNG WEB GIAO DIỆN (STREAMLIT PYTHON)
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: fitzone_web_app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-gym_management}
+      DB_USER: ${POSTGRES_USER:-gym_admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-gym_password_2026}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app
+    networks:
+      - fitzone_network
+
+networks:
+  fitzone_network:
+    driver: bridge
