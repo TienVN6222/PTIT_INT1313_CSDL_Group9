@@ -1,0 +1,190 @@
+erDiagram
+    %% ==========================================
+    %% PHẦN 1: MỐI QUAN HỆ (RELATIONSHIPS)
+    %% ==========================================
+    USER_ACCOUNT ||--o{ USER_ROLE : "HAS"
+    ROLE ||--o{ USER_ROLE : "ASSIGNED_TO"
+
+    ROLE ||--o{ ROLE_PERMISSION : "INCLUDES"
+    PERMISSION ||--o{ ROLE_PERMISSION : "GRANTED_TO"
+
+    %% Mối quan hệ 1:1 Shared Primary Key
+    USER_ACCOUNT ||--o| MEMBER_PROFILE : "HAS_PROFILE"
+    USER_ACCOUNT ||--o| TRAINER_PROFILE : "HAS_PROFILE"
+    USER_ACCOUNT ||--o| STAFF_PROFILE : "HAS_PROFILE"
+
+    USER_ACCOUNT ||--o{ MEMBER_SUBSCRIPTION : "SUBSCRIBES"
+    MEMBERSHIP_PLAN ||--o{ MEMBER_SUBSCRIPTION : "OFFERS"
+    MEMBER_SUBSCRIPTION ||--|| BILLING_LOG : "GENERATES"
+
+    USER_ACCOUNT ||--o{ PT_BOOKING : "BOOKS_AS_MEMBER"
+    USER_ACCOUNT ||--o{ PT_BOOKING : "COACHES_AS_TRAINER"
+
+    USER_ACCOUNT ||--o{ CLASS_SCHEDULE : "INSTRUCTS_AS_TRAINER"
+    FACILITIES_ROOM ||--o{ CLASS_SCHEDULE : "HOSTS"
+    
+    MEMBER_SUBSCRIPTION ||--o{ CLASS_ENROLLMENT : "USES_SUBSCRIPTION_TO_ENROLL"
+    CLASS_SCHEDULE ||--o{ CLASS_ENROLLMENT : "INCLUDES"
+
+    FACILITIES_ROOM ||--o{ EQUIPMENT : "STORES"
+    EQUIPMENT ||--o{ MAINTENANCE_LOG : "HAS_LOG"
+    USER_ACCOUNT ||--o{ MAINTENANCE_LOG : "PERFORMS_AS_STAFF"
+
+    EQUIPMENT ||--o{ EQUIPMENT_RESERVATION : "IS_RESERVED"
+    PT_BOOKING ||--o{ EQUIPMENT_RESERVATION : "RESERVES_FOR_PT"
+    CLASS_SCHEDULE ||--o{ EQUIPMENT_RESERVATION : "RESERVES_FOR_CLASS"
+
+    %% ==========================================
+    %% PHẦN 2: THUỘC TÍNH CHI TIẾT
+    %% ==========================================
+    USER_ACCOUNT {
+        int user_id PK
+        string full_name
+        string email
+        string phone
+        date dob
+        string emergency_contact
+        string password_hash
+        string status
+    }
+
+    ROLE {
+        int role_id PK
+        string role_name
+        string description
+    }
+
+    USER_ROLE {
+        int user_id FK
+        int role_id FK
+    }
+
+    PERMISSION {
+        int permission_id PK
+        string permission_code
+        string module_name
+        string description
+    }
+
+    ROLE_PERMISSION {
+        int role_id FK
+        int permission_id FK
+    }
+
+    MEMBER_PROFILE {
+        int user_id PK, FK
+        string health_notes
+    }
+
+    TRAINER_PROFILE {
+        int user_id PK, FK
+        string specialization
+        string bio
+        float current_rating
+    }
+
+    STAFF_PROFILE {
+        int user_id PK, FK
+        string job_title
+        string department
+    }
+
+    MEMBERSHIP_PLAN {
+        int plan_id PK
+        string plan_name
+        int duration_days
+        int total_sessions
+        decimal price
+        string description
+    }
+
+    MEMBER_SUBSCRIPTION {
+        int subscription_id PK
+        int member_user_id FK
+        int plan_id FK
+        decimal actual_price
+        int remaining_sessions
+        datetime start_time
+        datetime end_time
+        string sub_status
+        boolean is_recurring
+    }
+
+    BILLING_LOG {
+        int billing_id PK
+        int subscription_id FK
+        string invoice_no
+        decimal amount
+        date payment_date
+        string payment_method
+        string payment_status
+    }
+
+    FACILITIES_ROOM {
+        int room_id PK
+        string room_name
+        int max_capacity
+        string room_type
+        string status
+    }
+
+    CLASS_SCHEDULE {
+        int class_id PK
+        int trainer_user_id FK
+        int room_id FK
+        string class_name
+        datetime start_time
+        datetime end_time
+        int max_capacity
+        int current_enrolled
+    }
+
+    CLASS_ENROLLMENT {
+        int enrollment_id PK
+        int subscription_id FK
+        int class_id FK
+        datetime enrollment_date
+        string status
+    }
+
+    PT_BOOKING {
+        int booking_id PK
+        int member_user_id FK
+        int trainer_user_id FK
+        int subscription_id FK
+        date booking_date
+        datetime start_time
+        datetime end_time
+        string status
+    }
+
+    EQUIPMENT {
+        int equipment_id PK
+        int room_id FK
+        string equipment_name
+        string serial_number
+        date purchase_date
+        int depreciation_months
+        string status
+    }
+
+    EQUIPMENT_RESERVATION {
+        int reservation_id PK
+        int equipment_id FK
+        int booking_id FK
+        int class_id FK
+        datetime start_time
+        datetime end_time
+        string status
+    }
+
+    MAINTENANCE_LOG {
+        int maintenance_id PK
+        int equipment_id FK
+        int staff_user_id FK
+        string issue_description
+        datetime start_time
+        datetime end_time
+        decimal cost
+        string status
+    }

@@ -1,0 +1,876 @@
+BÁO CÁO ĐỒ ÁN MÔN HỌC: CƠ SỞ DỮ LIỆU (INT1313)
+A. THÔNG TIN ĐỀ TÀI (PROJECT IDENTITY)
+Tên Đề Tài (Project Title):
+Hệ Thống Quản Lý Hội Viên & Lập Kế Hoạch Huấn Luyện Viên Cá Nhân (Gym Membership & PT Planner)
+Mã Đề Tài (Project ID):
+09
+Tên Nhóm (Team Name):
+G9
+Thành Viên Thực Hiện (Members):
+1. Lê Hoàng Tiến (n25dcat050@student.ptithcm.edu.vn)
+2. Lê Hòa Thuận
+(n25dcat110@student.ptithcm.edu.vn)
+3. Trần Minh Tiến
+(n25dcat111@student.ptithcm.edu.vn)
+B. NỘI DUNG BÁO CÁO (REPORT STRUCTURE)
+Giới thiệu & Phạm vi dự án
+Mục tiêu hệ thống
+Quy tắc Nghiệp vụ & Ràng buộc
+Thiết kế cơ sở dữ liệu
+Mô hình khái niệm (Sơ đồ ER/EER)
+Ánh xạ Lược đồ Logic
+Kiểm tra Chuẩn hóa (1NF -> 3NF/BCNF)
+Từ điển dữ liệu
+Triển khai Cơ sở Dữ liệu
+Kiểm thử & Bảo mật
+Giới thiệu & Phạm vi dự án
+Mục tiêu hệ thống 
+Dự án hướng đến việc thiết kế và triển khai cơ sở dữ liệu quan hệ hoàn chỉnh cho hệ thống "Gym Membership; Personal Training Planner" — giải pháp quản lý vận hành phòng tập thể hình tích hợp. 
+Đối tượng; Phạm vi nghiệp vụ: Hệ thống kết nối các nhóm người dùng cốt lõi gồm Hội viên, Huấn luyện viên, Nhân viên (Lễ tân/Kỹ thuật) và Quản trị viên thông qua cơ chế phân quyền theo vai trò (RBAC), nhằm xử lý 3 phân hệ nghiệp vụ chính:
+Quản lý Hội viên; Gói tập: Ghi nhận thông tin hội viên, quản lý các hợp đồng đăng ký (theo thời gian hoặc theo số buổi PT) và tự động hóa việc lưu vết nhật ký thanh toán/gia hạn định kỳ.
+Lập lịch; Đặt chỗ: Quản lý xếp lịch lớp học nhóm, đặt ca tập PT 1-1 và đăng ký giữ chỗ thiết bị; cài đặt các ràng buộc CSDL để chống tuyệt đối việc trùng/đụng lịch của PT, Hội viên và Phòng tập.
+Bảo trì Cơ sở vật chất: Theo dõi khấu hao, ghi nhận sự cố và quản lý nhật ký sửa chữa thiết bị; tự động vô hiệu hóa và chặn xếp lịch đối với các máy móc/phòng tập đang trong trạng thái bảo trì.
+Quy tắc nghiệp vụ & Ràng buộc
+BR-01: Mỗi HỘI VIÊN (MEMBER) phải có một mã định danh member_id duy nhất trên toàn hệ thống
+BR-02: Email và Số điện thoại (email, phone) của HỘI VIÊN là thông tin duy nhất, không được phép trùng lặp
+BR-03: Độ tuổi của HỘI VIÊN khi đăng ký hồ sơ phải từ 12 tuổi trở lên (dob <= CURRENT_DATE - 12 năm)
+BR-04: Mỗi GÓI TẬP (MEMBERSHIP_PLAN) có thời hạn tính theo tháng (duration_months > 0) và đơn giá gói (price >= 0)
+BR-05: Một HỘI VIÊN có thể đăng ký nhiều HỢP ĐỒNG ĐĂNG KÝ (MEMBER_SUBSCRIPTION) theo thời gian, nhưng tại một thời điểm chỉ có tối đa 1 hợp đồng ở trạng thái Active
+BR-06: Trong một HỢP ĐỒNG ĐĂNG KÝ, ngày kết thúc hợp đồng phải lớn hơn hoặc bằng ngày bắt đầu (end_date >= start_date)
+BR-07: Trạng thái hợp đồng đăng ký gói (sub_status) chỉ được kích hoạt sang Active khi hóa đơn thanh toán tương ứng đã hoàn tất
+BR-08: Mỗi chu kỳ gia hạn hợp đồng chỉ được phép phát sinh duy nhất 1 HÓA ĐƠN THANH TOÁN (BILLING_LOG) (ràng buộc duy nhất trên cặp subscription_id + chu kỳ tính phí)
+BR-09: Mỗi HÓA ĐƠN THANH TOÁN phải có mã hóa đơn (invoice_no) duy nhất và số tiền thanh toán lớn hơn 0 (amount > 0)
+BR-10: Các bản ghi thanh toán thành công là dữ liệu bất biến (Immutable Log), hệ thống tuyệt đối không cho phép sửa đổi hoặc xóa
+BR-11: Mỗi HUẤN LUYỆN VIÊN (TRAINER) có mã định danh trainer_id, phone và email duy nhất
+BR-12: Một HUẤN LUYỆN VIÊN không được phép có 2 lịch hẹn (lớp học nhóm CLASS_SCHEDULE hoặc ca PT PT_BOOKING) trùng hoặc chồng chéo khoảng thời gian (Overlapping Time Intervals)
+BR-13: Mỗi PHÒNG TẬP / KHU VỰC (FACILITIES_ROOMS) có sức chứa tối đa quy định (max_capacity > 0)
+BR-14: Số lượng HỘI VIÊN đăng ký tham gia một lớp học nhóm (current_enrolled) không được vượt quá sức chứa tối đa (max_capacity) của lớp/phòng đó
+BR-15: Một PHÒNG TẬP / KHU VỰC không được đồng thời xếp 2 sự kiện (lớp học nhóm hoặc ca PT 1-1) tại cùng một thời điểm
+BR-16: Một HỘI VIÊN không thể đăng ký tham gia 2 lịch tập (lớp học nhóm hoặc ca PT 1-1) trong cùng một thời điểm
+BR-17: Thời gian kết thúc của ca tập PT 1-1 hoặc lớp học nhóm phải xảy ra sau thời gian bắt đầu (end_time > start_time)
+BR-18: Ca tập PT 1-1 (PT_BOOKING) chỉ được tạo khi số buổi PT còn lại của hội viên lớn hơn 0 (remaining_pt_sessions > 0) và tự động trừ 1 sau khi ca tập hoàn thành
+BR-19: PHÒNG TẬP hoặc THIẾT BỊ đang ở trạng thái bảo trì (Under_Maintenance / In_Progress) sẽ bị hệ thống tự động vô hiệu hóa và chặn mọi thao tác xếp lịch mới
+BR-20: Mỗi NHẬT KÝ BẢO TRÌ (MAINTENANCE_LOG) phải có chi phí bảo trì không âm (cost >= 0) và thời gian hoàn thành phải lớn hơn hoặc bằng thời gian bắt đầu (end_time >= start_time)
+BR-21: Mỗi ca tập PT hoặc lớp học có thể đăng ký giữ chỗ trước các thiết bị tương ứng; hệ thống phải chặn không cho phép 1 thiết bị bị đặt trùng khoảng thời gian giữa 2 ca tập hoặc rơi vào lịch bảo trì
+BR-22: Hệ thống quản lý truy cập theo vai trò (RBAC). Một tài khoản người dùng (USER_ACCOUNT) có thể sở hữu một hoặc nhiều vai trò (ROLE: Khách hàng, PT, Tiếp tân, Admin, Kỹ thuật viên)
+BR-23: Mọi giao dịch tạo mới hoặc thay đổi dữ liệu (đăng ký gói, xếp lịch, nhật ký bảo trì) đều phải gắn liền với mã định danh người thực hiện (`created_by_user_id`).
+BR-24: Hợp đồng đăng ký có cấu hình tự động gia hạn (`is_recurring = TRUE`) sẽ tự động phát sinh hóa đơn mới khi đến ngày hết hạn. Nếu sau thời gian ân hạn (`grace_period`, ví dụ 3 ngày) chưa được thanh toán thành công, trạng thái hợp đồng tự động chuyển sang `Expired` hoặc `Suspended`
+BR-25: Ca tập PT 1-1 chỉ được hủy và hoàn lại số buổi tập (`remaining_pt_sessions = remaining_pt_sessions + 1`) nếu thao tác hủy diễn ra trước thời điểm bắt đầu tối thiểu X giờ (ví dụ: 24h). Trường hợp hủy muộn hoặc bỏ tập (No-show), ca tập vẫn tính là đã hoàn thành và trừ 1 buổi.
+BR-26: Mỗi thiết bị phòng tập phải ghi nhận ngày bắt đầu đưa vào sử dụng (`purchase_date`) và thời gian khấu hao dự kiến tính theo tháng (`depreciation_months` \&gt; 0)
+Thiết Kế Cơ Sở Dữ Liệu
+Mô hình Quan niệm – Sơ đồ ER/EER (Conceptual Model – ER/EER Diagram)
+Phân hệ Phân quyền & Quản lý Tài khoản (RBAC):
+USER_ACCOUNT: Lưu trữ thông tin định danh và đăng nhập dùng chung.
+ROLE, PERMISSION, USER_ROLE, ROLE_PERMISSION: Quản lý phân quyền đa vai trò động theo chuẩn RBAC.
+MEMBER_PROFILE, TRAINER_PROFILE, STAFF_PROFILE: Các thực thể con (Subclasses) mở rộng thông tin chi tiết cho từng nhóm người dùng.
+Phân hệ Gói tập & Thanh toán (Subscription & Billing):
+MEMBERSHIP_PLAN: Định nghĩa các gói tập (theo thời gian hoặc theo số buổi PT).
+MEMBER_SUBSCRIPTION: Lưu trữ các hợp đồng đăng ký gói tập của hội viên.
+BILLING_LOG: Nhật ký hóa đơn thanh toán/gia hạn bất biến (Immutable Billing Log).
+Phân hệ Lịch tập & Đặt chỗ (Scheduling & Enrollment):
+CLASS_SCHEDULE: Quản lý danh mục và lịch thi đấu/học của các lớp nhóm.
+CLASS_ENROLLMENT: Bảng trung gian giải quyết quan hệ M:N giữa hợp đồng hội viên và lớp học nhóm.
+PT_BOOKING: Quản lý các ca tập 1-1 giữa Hội viên và Huấn luyện viên cá nhân.
+Phân hệ Cơ sở vật chất & Bảo trì (Facilities & Equipment):
+FACILITIES_ROOM: Quản lý danh mục phòng tập/khu vực chức năng và sức chứa.
+EQUIPMENT: Quản lý danh mục thiết bị, máy tập và thông tin khấu hao.
+EQUIPMENT_RESERVATION: Đăng ký giữ chỗ máy tập cho ca tập PT 1-1 hoặc lớp học nhóm để chống đụng/hết máy.
+MAINTENANCE_LOG: Nhật ký ghi nhận sự cố và tiến độ bảo trì thiết bị do nhân viên kỹ thuật (STAFF_PROFILE) đảm nhận.
+Ánh xạ Lược đồ Logic (Logical Schema Mapping)
+ Phân hệ Tài khoản & Phân quyền RBAC
+USER_ACCOUNT (user_id, full_name, email, phone, dob, emergency_contact, password_hash, status)
+ROLE (role_id, role_name, description)
+USER_ROLE (user_id, role_id)
+FK: user_id --> USER_ACCOUNT(user_id)
+FK: role_id --> ROLE(role_id)
+PERMISSION (permission_id, permission_code, module_name, description)
+ROLE_PERMISSION (role_id, permission_id)
+FK: role_id --> ROLE(role_id)
+FK: permission_id --> PERMISSION(permission_id)
+ Phân hệ Hồ sơ Chuyên biệt (Shared Primary Key)
+MEMBER_PROFILE (user_id, health_notes)
+FK: user_id --> USER_ACCOUNT(user_id)
+TRAINER_PROFILE (user_id, specialization, bio, current_rating)
+FK: user_id --> USER_ACCOUNT(user_id)
+STAFF_PROFILE (user_id, job_title, department)
+FK: user_id --> USER_ACCOUNT(user_id)
+Phân hệ Gói tập & Thanh toán
+MEMBERSHIP_PLAN (plan_id, plan_name, duration_days, total_sessions, price, description)
+MEMBER_SUBSCRIPTION (subscription_id, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring)
+FK: member_user_id --> USER_ACCOUNT(user_id)
+FK: plan_id --> MEMBERSHIP_PLAN(plan_id)
+BILLING_LOG (billing_id, subscription_id, invoice_no, amount, payment_date, payment_method, payment_status)
+FK: subscription_id --> MEMBER_SUBSCRIPTION(subscription_id)
+Phân hệ Lịch tập & Đặt chỗ
+FACILITIES_ROOM (room_id, room_name, max_capacity, room_type, status)
+CLASS_SCHEDULE (class_id, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled)
+FK: trainer_user_id --> USER_ACCOUNT(user_id)
+FK: room_id --> FACILITIES_ROOM(room_id)
+CLASS_ENROLLMENT (enrollment_id, subscription_id, class_id, enrollment_date, status)
+FK: subscription_id --> MEMBER_SUBSCRIPTION(subscription_id)
+FK: class_id --> CLASS_SCHEDULE(class_id)
+PT_BOOKING (booking_id, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
+FK: member_user_id --> USER_ACCOUNT(user_id)
+FK: trainer_user_id --> USER_ACCOUNT(user_id)
+FK: subscription_id --> MEMBER_SUBSCRIPTION(subscription_id)
+ Phân hệ Thiết bị & Bảo trì
+EQUIPMENT (equipment_id, room_id, equipment_name, serial_number, purchase_date, depreciation_months, status)
+FK: room_id --> FACILITIES_ROOM(room_id)
+EQUIPMENT_RESERVATION (reservation_id, equipment_id, booking_id, class_id, start_time, end_time, status)
+FK: equipment_id --> EQUIPMENT(equipment_id)
+FK: booking_id --> PT_BOOKING(booking_id)
+FK: class_id --> CLASS_SCHEDULE(class_id)
+MAINTENANCE_LOG (maintenance_id, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status)
+FK: equipment_id --> EQUIPMENT(equipment_id)
+FK: staff_user_id --> USER_ACCOUNT(user_id)
+Chứng minh Chuẩn hóa Dữ liệu (Normalization Verification: 1NF -> 3NF/BCNF)
+Toàn bộ các bảng trong thiết kế CSDL đã được kiểm chứng đạt Dạng chuẩn Boyce-Codd (BCNF):
+Dạng chuẩn 1 (1NF): Mọi thuộc tính đều chứa giá trị đơn nguyên tố (Atomic Values). Các danh sách đa trị (vai trò người dùng, lịch đăng ký lớp, danh sách giữ chỗ thiết bị) đều đã tách thành các bảng trung gian.
+Dạng chuẩn 2 (2NF): Đạt 1NF và tất cả các thuộc tính không khóa đều phụ thuộc hàm toàn phần vào khóa chính. Các bảng khóa ghép như USER_ROLE và ROLE_PERMISSION không chứa thuộc tính không khóa nào phụ thuộc một phần.
+Dạng chuẩn 3 (3NF): Đạt 2NF và không tồn tại phụ thuộc bắc cầu X --> Y --> Z. Ví dụ: Giá bán thực tế actual_price trong MEMBER_SUBSCRIPTION được lưu riêng biệt để tránh biến động giá gói tập ở MEMBERSHIP_PLAN làm sai lệch lịch sử giao dịch6.
+Dạng chuẩn Boyce-Codd (BCNF): Đạt 3NF và mọi phụ thuộc hàm không tầm thường X --> A đều có vế trái X là một Siêu khóa (Superkey). 
+CSDL hoàn toàn loại bỏ các nguy cơ bất thường dữ liệu khi Thêm, Xóa, Cập nhật
+Từ Điển Dữ Liệu
+PHÂN HỆ 1: QUẢN LÝ NGƯỜI DÙNG & PHÂN QUYỀN RBAC
+Quản lý thông tin định danh tài khoản, hệ thống phân quyền đa vai trò động (Role-Based Access Control) và phân cấp quyền hạn chi tiết.
+Bảng 3.1.1: USER_ACCOUNT
+Mô tả: Bảng trung tâm lưu trữ thông tin tài khoản người dùng dùng chung toàn hệ thống.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+user_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã người dùng duy nhất toàn hệ thống (BR-01)
+full_name
+VARCHAR(100)
+None
+No
+None
+Họ và tên đầy đủ của người dùng
+email
+VARCHAR(100)
+None
+No
+None
+Email đăng nhập duy nhất (UNIQUE) (BR-02)
+phone
+VARCHAR(20)
+None
+No
+None
+Số điện thoại duy nhất (UNIQUE) (BR-02)
+dob
+DATE
+None
+No
+None
+Ngày sinh; CHECK (dob <= CURRENT_DATE - 12 năm) (BR-03)
+emergency_contact
+VARCHAR(100)
+None
+Yes
+NULL
+Thông tin liên hệ khẩn cấp (SĐT/Họ tên)
+password_hash
+VARCHAR(255)
+None
+No
+None
+Chuỗi mật khẩu đã được mã hóa băm bảo mật
+status
+VARCHAR(20)
+None
+No
+'Active'
+Trạng thái: 'Active', 'Inactive', 'Suspended'
+Bảng 3.1.2: ROLE
+Mô tả: Danh mục các vai trò hệ thống quy định nhóm thẩm quyền sử dụng.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+role_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh vai trò hệ thống
+role_name
+VARCHAR(50)
+None
+No
+None
+Tên vai trò (UNIQUE): Member, Trainer, Receptionist, Tech, Admin (BR-22)
+description
+VARCHAR(255)
+None
+Yes
+NULL
+Mô tả chi tiết thẩm quyền và trách nhiệm của vai trò
+Bảng 3.1.3: USER_ROLE
+Mô tả: Bảng trung gian gán vai trò cho người dùng (hỗ trợ 1 người giữ nhiều vai trò).
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+user_id
+INT
+PK, FK
+No
+None
+Ref USER_ACCOUNT(user_id) ON DELETE CASCADE (BR-22)
+role_id
+INT
+PK, FK
+No
+None
+Ref ROLE(role_id) ON DELETE CASCADE (BR-22)
+Bảng 3.1.4: PERMISSION
+Mô tả: Danh mục các quyền thao tác chi tiết theo từng phân hệ chức năng.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+permission_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh quyền thao tác
+permission_code
+VARCHAR(50)
+None
+No
+None
+Mã quyền duy nhất (UNIQUE) (VD: MEMBER_CREATE, EQUIP_EDIT)
+module_name
+VARCHAR(50)
+None
+No
+None
+Phân hệ nghiệp vụ tương ứng (VD: Billing, Booking)
+description
+VARCHAR(255)
+None
+Yes
+NULL
+Diễn giải chi tiết thao tác được phép thực hiện
+Bảng 3.1.5: ROLE_PERMISSION
+Mô tả: Bảng trung gian phân bổ các quyền chi tiết cho từng vai trò hệ thống.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+role_id
+INT
+PK, FK
+No
+None
+Ref ROLE(role_id) ON DELETE CASCADE
+permission_id
+INT
+PK, FK
+No
+None
+Ref PERMISSION(permission_id) ON DELETE CASCADE
+PHÂN HỆ 2: HỒ SƠ CHUYÊN BIỆT (EER SUBCLASSES)
+Mở rộng thông tin chuyên môn riêng cho từng nhóm người dùng (Hội viên, PT, Nhân viên) theo cơ chế Shared Primary Key.
+Bảng 3.2.1: MEMBER_PROFILE
+Mô tả: Hồ sơ thông tin bổ sung dành riêng cho nhóm Hội viên tập luyện.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+user_id
+INT
+PK, FK
+No
+None
+Shared PK; Ref USER_ACCOUNT(user_id) ON DELETE CASCADE
+health_notes
+TEXT
+None
+Yes
+NULL
+Ghi chú tình trạng sức khỏe, tiền sử bệnh lý hoặc dị ứng
+Bảng 3.2.2: TRAINER_PROFILE
+Mô tả: Hồ sơ thông tin chuyên môn dành riêng cho Huấn luyện viên cá nhân (PT).
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+user_id
+INT
+PK, FK
+No
+None
+Shared PK; Ref USER_ACCOUNT(user_id) ON DELETE CASCADE
+specialization
+VARCHAR(100)
+None
+Yes
+NULL
+Lĩnh vực chuyên môn giảng dạy (Gym, Yoga, Pilates, Boxing...)
+bio
+TEXT
+None
+Yes
+NULL
+Tiểu sử cá nhân, kinh nghiệm công tác và bằng cấp chứng chỉ
+current_rating
+DECIMAL(3,2)
+None
+No
+5.00
+Điểm đánh giá trung bình từ hội viên (CHECK: 0.00 đến 5.00)
+Bảng 3.2.3: STAFF_PROFILE
+Mô tả: Hồ sơ công tác dành riêng cho nhóm Nhân viên vận hành (Lễ tân, Kỹ thuật viên).
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+user_id
+INT
+PK, FK
+No
+None
+Shared PK; Ref USER_ACCOUNT(user_id) ON DELETE CASCADE
+job_title
+VARCHAR(50)
+None
+No
+None
+Chức danh công việc (Receptionist, Technician, Manager)
+department
+VARCHAR(50)
+None
+No
+None
+Phòng ban công tác trực thuộc
+PHÂN HỆ 3: GÓI TẬP & THANH TOÁN (SUBSCRIPTIONS & BILLING)
+Quản lý gói dịch vụ phòng tập, hợp đồng đăng ký hội viên và nhật ký hóa đơn gia hạn tự động bất biến.
+Bảng 3.3.1: MEMBERSHIP_PLAN
+Mô tả: Danh mục các gói tập tiêu chuẩn được phòng tập kinh doanh.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+plan_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh gói tập
+plan_name
+VARCHAR(100)
+None
+No
+None
+Tên hiển thị gói tập (VD: Gói VIP 12 Tháng, Gói PT 20 Buổi)
+duration_days
+INT
+None
+No
+None
+Thời hạn có hiệu lực tính theo ngày (CHECK: duration_days > 0) (BR-04)
+total_sessions
+INT
+None
+No
+0
+Tổng số buổi tập PT được cấp (gán = 0 nếu là gói thời gian)
+price
+DECIMAL(10,2)
+None
+No
+None
+Đơn giá niêm yết của gói tập (CHECK: price >= 0) (BR-04)
+description
+TEXT
+None
+Yes
+NULL
+Mô tả chi tiết các đặc quyền và điều khoản gói tập
+Bảng 3.3.2: MEMBER_SUBSCRIPTION
+Mô tả: Hợp đồng đăng ký gói tập cụ thể của hội viên.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+subscription_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh hợp đồng đăng ký
+member_user_id
+INT
+FK
+No
+None
+Ref USER_ACCOUNT(user_id) (Hội viên đứng tên hợp đồng) (BR-05)
+plan_id
+INT
+FK
+No
+None
+Ref MEMBERSHIP_PLAN(plan_id) (Gói tập đã chọn)
+actual_price
+DECIMAL(10,2)
+None
+No
+None
+Giá bán thực tế lưu tại thời điểm ký (độc lập với giá niêm yết)
+remaining_sessions
+INT
+None
+No
+0
+Số buổi PT còn lại trong gói (CHECK: remaining_sessions >= 0) (BR-18)
+start_time
+DATETIME
+None
+No
+None
+Thời điểm hợp đồng bắt đầu tính hiệu lực
+end_time
+DATETIME
+None
+No
+None
+Thời điểm hợp đồng hết hiệu lực; CHECK (end_time >= start_time) (BR-06)
+sub_status
+VARCHAR(20)
+None
+No
+'Pending'
+Trạng thái hợp đồng: 'Active', 'Expired', 'Suspended' (BR-07)
+is_recurring
+BOOLEAN
+None
+No
+FALSE
+Cấu hình tự động tạo hóa đơn gia hạn lặp đi lặp lại (BR-24)
+Bảng 3.3.3: BILLING_LOG
+Mô tả: Nhật ký lưu vết giao dịch thanh toán hóa đơn bất biến (Immutable Billing Log).
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+billing_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã nhật ký giao dịch thanh toán
+subscription_id
+INT
+FK
+No
+None
+Ref MEMBER_SUBSCRIPTION(subscription_id) (BR-08)
+invoice_no
+VARCHAR(50)
+None
+No
+None
+Số hóa đơn duy nhất toàn hệ thống (UNIQUE) (BR-09)
+amount
+DECIMAL(10,2)
+None
+No
+None
+Số tiền thanh toán thực tế (CHECK: amount > 0) (BR-09)
+payment_date
+DATE
+None
+No
+None
+Ngày phát sinh giao dịch thanh toán thành công
+payment_method
+VARCHAR(50)
+None
+No
+None
+Phương thức thanh toán ('Cash', 'Credit_Card', 'Banking')
+payment_status
+VARCHAR(20)
+None
+No
+'Completed'
+Trạng thái hóa đơn (Bản ghi bất biến tuyệt đối không sửa/xóa) (BR-10)
+PHÂN HỆ 4: LỊCH TẬP & ĐẶT CHỖ (SCHEDULING & ENROLLMENT)
+Quản lý cơ sở phòng tập, lịch lớp học nhóm, đăng ký lớp học và đặt ca tập PT 1-1 chống đụng lịch.
+Bảng 3.4.1: FACILITIES_ROOM
+Mô tả: Danh mục phòng tập và các khu vực chức năng trong trung tâm.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+room_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh phòng tập / khu vực
+room_name
+VARCHAR(100)
+None
+No
+None
+Tên hiển thị của phòng (VD: Phòng Yoga A1, Khu Máy Lưng)
+max_capacity
+INT
+None
+No
+None
+Sức chứa người tối đa cùng lúc (CHECK: max_capacity > 0) (BR-13)
+room_type
+VARCHAR(50)
+None
+No
+None
+Loại phòng ('Yoga_Studio', 'Gym_Floor', 'Boxing_Ring')
+status
+VARCHAR(20)
+None
+No
+'Active'
+Trạng thái: 'Active', 'Under_Maintenance' (BR-19)
+Bảng 3.4.2: CLASS_SCHEDULE
+Mô tả: Lịch vận hành các lớp học thể thao nhóm cố định.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+class_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh lớp học nhóm
+trainer_user_id
+INT
+FK
+No
+None
+Ref USER_ACCOUNT(user_id) (Huấn luyện viên phụ trách lớp)
+room_id
+INT
+FK
+No
+None
+Ref FACILITIES_ROOM(room_id) (Phòng tập tổ chức lớp)
+class_name
+VARCHAR(100)
+None
+No
+None
+Tên lớp học nhóm (VD: Power Yoga K12, BodyPump Morning)
+start_time
+DATETIME
+None
+No
+None
+Thời điểm bắt đầu lớp học
+end_time
+DATETIME
+None
+No
+None
+Thời điểm kết thúc lớp học; CHECK (end_time > start_time) (BR-17)
+max_capacity
+INT
+None
+No
+None
+Số lượng hội viên tối đa cho phép đăng ký tham gia lớp
+current_enrolled
+INT
+None
+No
+0
+Số lượng học viên đã đăng ký; CHECK (current_enrolled <= max_capacity) (BR-14)
+Bảng 3.4.3: CLASS_ENROLLMENT
+Mô tả: Bảng trung gian ghi nhận hội viên đăng ký tham gia lớp học nhóm.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+enrollment_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã lượt đăng ký lớp học
+subscription_id
+INT
+FK
+No
+None
+Ref MEMBER_SUBSCRIPTION(subscription_id) (Hợp đồng gói tập hợp lệ)
+class_id
+INT
+FK
+No
+None
+Ref CLASS_SCHEDULE(class_id) (Mã lớp học nhóm đăng ký)
+enrollment_date
+DATETIME
+None
+No
+CURRENT_TIMESTAMP
+Thời điểm thao tác đăng ký thành công
+status
+VARCHAR(20)
+None
+No
+'Enrolled'
+Trạng thái đăng ký: 'Enrolled', 'Cancelled', 'Attended'
+Bảng 3.4.4: PT_BOOKING
+Mô tả: Quản lý ca tập cá nhân 1-1 giữa Hội viên và Huấn luyện viên.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+booking_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh ca tập PT 1-1
+member_user_id
+INT
+FK
+No
+None
+Ref USER_ACCOUNT(user_id) (Hội viên đặt ca tập)
+trainer_user_id
+INT
+FK
+No
+None
+Ref USER_ACCOUNT(user_id) (PT chịu trách nhiệm dạy) (BR-12)
+subscription_id
+INT
+FK
+No
+None
+Ref MEMBER_SUBSCRIPTION(subscription_id) (Gói PT dùng trừ buổi) (BR-18)
+booking_date
+DATE
+None
+No
+None
+Ngày diễn ra ca tập
+start_time
+DATETIME
+None
+No
+None
+Thời điểm bắt đầu ca tập 1-1
+end_time
+DATETIME
+None
+No
+None
+Thời điểm kết thúc ca tập 1-1; CHECK (end_time > start_time) (BR-17)
+status
+VARCHAR(20)
+None
+No
+'Scheduled'
+Trạng thái: 'Scheduled', 'Completed', 'Cancelled' (BR-25)
+PHÂN HỆ 5: QUẢN LÝ THIẾT BỊ & BẢO TRÌ (FACILITIES & MAINTENANCE)
+Quản lý thiết bị máy tập, theo dõi khấu hao, lịch sử giữ chỗ máy cho buổi tập và nhật ký sửa chữa bảo trì.
+Bảng 3.5.1: EQUIPMENT
+Mô tả: Danh mục thiết bị và máy móc thể hình trang bị tại phòng tập.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+equipment_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã định danh thiết bị / máy tập
+room_id
+INT
+FK
+No
+None
+Ref FACILITIES_ROOM(room_id) (Vị trí phòng đặt máy)
+equipment_name
+VARCHAR(100)
+None
+No
+None
+Tên thiết bị (VD: Máy chạy bộ Technogym Run 1000)
+serial_number
+VARCHAR(100)
+None
+No
+None
+Mã series thiết bị duy nhất (UNIQUE)
+purchase_date
+DATE
+None
+No
+None
+Ngày nhập mua đưa vào sử dụng (BR-26)
+depreciation_months
+INT
+None
+No
+None
+Số tháng dự kiến khấu hao tài sản (CHECK: depreciation_months > 0) (BR-26)
+status
+VARCHAR(20)
+None
+No
+'Operational'
+Trạng thái máy: 'Operational', 'Under_Maintenance' (BR-19)
+Bảng 3.5.2: EQUIPMENT_RESERVATION
+Mô tả: Lịch đăng ký giữ chỗ trước máy tập cho ca tập PT hoặc lớp học (chống đụng máy).
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+reservation_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã lượt đăng ký giữ chỗ máy
+equipment_id
+INT
+FK
+No
+None
+Ref EQUIPMENT(equipment_id) (Thiết bị được đặt trước)
+booking_id
+INT
+FK
+Yes
+NULL
+Ref PT_BOOKING(booking_id) (Nối với ca PT 1-1 nếu giữ cho PT) (BR-21)
+class_id
+INT
+FK
+Yes
+NULL
+Ref CLASS_SCHEDULE(class_id) (Nối với lớp nhóm nếu giữ cho lớp) (BR-21)
+start_time
+DATETIME
+None
+No
+None
+Thời điểm bắt đầu giữ chỗ sử dụng máy
+end_time
+DATETIME
+None
+No
+None
+Thời điểm kết thúc giữ chỗ sử dụng máy
+status
+VARCHAR(20)
+None
+No
+'Reserved'
+Trạng thái: 'Reserved', 'Completed', 'Cancelled'
+Bảng 3.5.3: MAINTENANCE_LOG
+Mô tả: Nhật ký ghi nhận sự cố hư hỏng và tiến độ bảo trì thiết bị.
+Attribute Name
+Data Type
+Key
+Null?
+Default
+Business Rules / Constraints
+maintenance_id
+INT
+PK
+No
+AUTO_INCREMENT
+Mã nhật ký bảo trì thiết bị
+equipment_id
+INT
+FK
+No
+None
+Ref EQUIPMENT(equipment_id) (Mã máy tập cần sửa chữa)
+staff_user_id
+INT
+FK
+No
+None
+Ref USER_ACCOUNT(user_id) (Kỹ thuật viên chịu trách nhiệm xử lý)
+issue_description
+TEXT
+None
+No
+None
+Mô tả chi tiết sự cố hư hỏng hoặc lý do bảo trì
+start_time
+DATETIME
+None
+No
+None
+Thời điểm bắt đầu tiến hành bảo trì
+end_time
+DATETIME
+None
+Yes
+NULL
+Thời điểm hoàn thành sửa chữa; CHECK (end_time >= start_time) (BR-20)
+cost
+DECIMAL(10,2)
+None
+No
+0.00
+Chi phí sửa chữa thay thế linh kiện (CHECK: cost >= 0) (BR-20)
+status
+VARCHAR(20)
+None
+No
+'In_Progress'
+Trạng thái xử lý: 'In_Progress', 'Completed'
+Triển khai CSDL
