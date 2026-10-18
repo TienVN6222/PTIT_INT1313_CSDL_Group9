@@ -35,5 +35,3 @@
 
 ---
 ```
-
-Tôi đã khởi tạo xong tệp `business_rules.md` hoàn toàn bằng tiếng Việt dựa trên toàn bộ 26 quy tắc nghiệp vụ trong tài liệu đồ án của bạn. Bạn có thể kiểm tra trực tiếp trong cửa sổ hiển thị file ở góc phải màn hình!
