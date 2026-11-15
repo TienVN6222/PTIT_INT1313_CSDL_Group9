@@ -13,10 +13,21 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      # Tự động nạp DDL, DML Mock Data, và Triggers/Views khi container khởi động lần đầu
-      - ./database/01_schema_ddl.sql:/docker-entrypoint-initdb.d/01_schema_ddl.sql:ro
-      - ./database/02_mock_data.sql:/docker-entrypoint-initdb.d/02_mock_data.sql:ro
-      - ./database/04_triggers_views.sql:/docker-entrypoint-initdb.d/04_triggers_views.sql:ro
+      # Tự động nạp theo thứ tự tên file: DDL -> Mock Data (8 file) -> Triggers/Views -> RBAC
+      # (postgres chỉ chạy file nằm trực tiếp trong initdb.d nên mỗi file được mount riêng)
+      - "./Phase 3/01_schema_ddl.sql:/docker-entrypoint-initdb.d/01_schema_ddl.sql:ro"
+      - "./Phase 3/02_mock_data/01_reference_data.sql:/docker-entrypoint-initdb.d/02_01_reference_data.sql:ro"
+      - "./Phase 3/02_mock_data/02_users_and_profiles.sql:/docker-entrypoint-initdb.d/02_02_users_and_profiles.sql:ro"
+      - "./Phase 3/02_mock_data/03_equipment.sql:/docker-entrypoint-initdb.d/02_03_equipment.sql:ro"
+      - "./Phase 3/02_mock_data/04_subscriptions_and_billing.sql:/docker-entrypoint-initdb.d/02_04_subscriptions_and_billing.sql:ro"
+      - "./Phase 3/02_mock_data/05_classes_and_enrollments.sql:/docker-entrypoint-initdb.d/02_05_classes_and_enrollments.sql:ro"
+      - "./Phase 3/02_mock_data/06_pt_bookings.sql:/docker-entrypoint-initdb.d/02_06_pt_bookings.sql:ro"
+      - "./Phase 3/02_mock_data/07_equipment_reservations.sql:/docker-entrypoint-initdb.d/02_07_equipment_reservations.sql:ro"
+      - "./Phase 3/02_mock_data/08_maintenance_logs.sql:/docker-entrypoint-initdb.d/02_08_maintenance_logs.sql:ro"
+      - "./Phase 3/04_triggers_views.sql:/docker-entrypoint-initdb.d/04_triggers_views.sql:ro"
+      - "./Phase 3/08_rbac_security.sql:/docker-entrypoint-initdb.d/08_rbac_security.sql:ro"
+      # Script kiểm thử chạy thủ công (KHÔNG chạy lúc khởi tạo), xem README
+      - "./Phase 3:/sql:ro"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gym_admin} -d ${POSTGRES_DB:-gym_management}"]
       interval: 3s
@@ -40,13 +51,52 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-gym_management}
-      DB_USER: ${POSTGRES_USER:-gym_admin}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-gym_password_2026}
+      # Web đăng nhập bằng tài khoản KHÔNG phải superuser (nhóm quyền gym_role_admin, tạo ở 08_rbac_security.sql).
+      # POSTGRES_USER chỉ dùng cho initdb (nạp schema/dữ liệu); không dùng cho ứng dụng.
+      DB_USER: ${DB_USER:-gym_u_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-demo_2026}
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./app:/app
+    networks:
+      - fitzone_network
+
+  # ----------------------------------------------------------------------------
+  # BỘ LẬP LỊCH GIA HẠN HỢP ĐỒNG (BR-24)
+  # Gọi thủ tục sp_process_subscription_renewals() ngay khi khởi động rồi lặp lại mỗi
+  # RENEWAL_INTERVAL_SECONDS giây (mặc định 86400 = 1 ngày). Đăng nhập bằng tài khoản lễ tân
+  # gym_u_reception (có EXECUTE thủ tục, không phải superuser). Môi trường production nên dùng
+  # pg_cron hoặc cron của hệ điều hành thay cho container này.
+  # ----------------------------------------------------------------------------
+  scheduler:
+    image: postgres:16-alpine
+    container_name: fitzone_renewal_scheduler
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-gym_management}
+      PGUSER: ${SCHEDULER_DB_USER:-gym_u_reception}
+      PGPASSWORD: ${SCHEDULER_DB_PASSWORD:-demo_2026}
+      RENEWAL_INTERVAL_SECONDS: ${RENEWAL_INTERVAL_SECONDS:-86400}
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "$$(date -u '+%Y-%m-%d %H:%M:%S') [scheduler] khởi động, chu kỳ $${RENEWAL_INTERVAL_SECONDS}s"
+        until pg_isready -q; do sleep 2; done
+        while true; do
+          if psql -v ON_ERROR_STOP=1 -q -c "CALL sp_process_subscription_renewals();"; then
+            echo "$$(date -u '+%Y-%m-%d %H:%M:%S') [scheduler] OK: CALL sp_process_subscription_renewals()"
+          else
+            echo "$$(date -u '+%Y-%m-%d %H:%M:%S') [scheduler] LỖI khi gọi sp_process_subscription_renewals(), thử lại ở chu kỳ sau"
+          fi
+          sleep "$${RENEWAL_INTERVAL_SECONDS}"
+        done
     networks:
       - fitzone_network
 

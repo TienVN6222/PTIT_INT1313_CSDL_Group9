@@ -184,7 +184,7 @@ CREATE TABLE membership_plan (
     CONSTRAINT chk_membership_plan_price CHECK (price >= 0)
 );
 
--- Bảng 10: member_subscription (Hợp đồng đăng ký gói tập của hội viên - BR-05, BR-06, BR-07, BR-24)
+-- Bảng 10: member_subscription (Hợp đồng đăng ký gói tập của hội viên - BR-05, BR-06, BR-07, BR-23, BR-24)
 CREATE TABLE member_subscription (
     subscription_id    SERIAL,
     member_user_id     INT            NOT NULL,
@@ -196,36 +196,54 @@ CREATE TABLE member_subscription (
     sub_status         VARCHAR(20)    NOT NULL DEFAULT 'Pending',
     is_recurring       BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at         TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id INT,
     CONSTRAINT pk_member_subscription PRIMARY KEY (subscription_id),
     CONSTRAINT uq_subscription_member UNIQUE (subscription_id, member_user_id),
     CONSTRAINT fk_subscription_member FOREIGN KEY (member_user_id)
         REFERENCES member_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_subscription_plan FOREIGN KEY (plan_id)
         REFERENCES membership_plan (plan_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_subscription_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_subscription_price CHECK (actual_price >= 0),
     CONSTRAINT chk_subscription_remaining CHECK (remaining_sessions >= 0),
     CONSTRAINT chk_subscription_dates CHECK (end_time >= start_time),
     CONSTRAINT chk_subscription_status CHECK (sub_status IN ('Pending', 'Active', 'Expired', 'Suspended', 'Cancelled'))
 );
 
--- Bảng 11: billing_log (Nhật ký hóa đơn thanh toán bất biến - BR-08, BR-09, BR-10)
+-- BR-05: tại một thời điểm một hội viên chỉ có tối đa 1 hợp đồng ở trạng thái Active.
+CREATE UNIQUE INDEX uq_member_one_active_subscription
+    ON member_subscription (member_user_id)
+    WHERE sub_status = 'Active';
+
+-- Bảng 11: billing_log (Nhật ký hóa đơn thanh toán bất biến - BR-08, BR-09, BR-10, BR-23)
 CREATE TABLE billing_log (
     billing_id      SERIAL,
     subscription_id INT            NOT NULL,
+    billing_period_start DATE      NOT NULL,
     invoice_no      VARCHAR(50)    NOT NULL,
     amount          DECIMAL(10, 2) NOT NULL,
     payment_date    DATE           NOT NULL,
     payment_method  VARCHAR(50)    NOT NULL,
     payment_status  VARCHAR(20)    NOT NULL DEFAULT 'Completed',
     created_at      TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id INT,
     CONSTRAINT pk_billing_log PRIMARY KEY (billing_id),
     CONSTRAINT uq_billing_invoice_no UNIQUE (invoice_no),
     CONSTRAINT fk_billing_subscription FOREIGN KEY (subscription_id)
         REFERENCES member_subscription (subscription_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_billing_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_billing_amount CHECK (amount > 0),
     CONSTRAINT chk_billing_method CHECK (payment_method IN ('Cash', 'Credit_Card', 'Banking', 'E_Wallet')),
     CONSTRAINT chk_billing_status CHECK (payment_status IN ('Pending', 'Completed', 'Failed', 'Refunded'))
 );
+
+-- BR-08: mỗi chu kỳ tính phí (billing_period_start) của một hợp đồng chỉ có tối đa 1 hóa đơn
+-- còn hiệu lực. Hóa đơn Failed/Refunded không chiếm chu kỳ nên có thể phát hành lại.
+CREATE UNIQUE INDEX uq_billing_subscription_period
+    ON billing_log (subscription_id, billing_period_start)
+    WHERE payment_status IN ('Pending', 'Completed');
 
 -- ============================================================================
 -- PHẦN 4: PHÂN HỆ CƠ SỞ VẬT CHẤT & THIẾT BỊ (FACILITIES & EQUIPMENT)
@@ -264,7 +282,7 @@ CREATE TABLE equipment (
 -- PHẦN 5: PHÂN HỆ LẬP LỊCH & ĐẶT CHỖ (SCHEDULING & ENROLLMENT)
 -- ============================================================================
 
--- Bảng 14: class_schedule (Lịch lớp học nhóm - BR-14, BR-17)
+-- Bảng 14: class_schedule (Lịch lớp học nhóm - BR-12, BR-14, BR-15, BR-17, BR-23)
 CREATE TABLE class_schedule (
     class_id         SERIAL,
     trainer_user_id  INT          NOT NULL,
@@ -274,11 +292,14 @@ CREATE TABLE class_schedule (
     end_time         TIMESTAMP    NOT NULL,
     max_capacity     INT          NOT NULL,
     current_enrolled INT          NOT NULL DEFAULT 0,
+    created_by_user_id INT,
     CONSTRAINT pk_class_schedule PRIMARY KEY (class_id),
     CONSTRAINT fk_class_trainer FOREIGN KEY (trainer_user_id)
         REFERENCES trainer_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_class_room FOREIGN KEY (room_id)
         REFERENCES facilities_room (room_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_class_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT ex_class_trainer_no_overlap EXCLUDE USING gist (
         trainer_user_id WITH =,
         tsrange(start_time, end_time, '[)') WITH &&
@@ -354,7 +375,9 @@ AFTER INSERT OR UPDATE OR DELETE ON class_enrollment
 FOR EACH ROW
 EXECUTE FUNCTION fn_sync_class_enrollment_count();
 
--- Bảng 16: pt_booking (Lịch hẹn ca tập huấn luyện viên cá nhân 1-1 - BR-12, BR-17, BR-18, BR-25)
+-- Bảng 16: pt_booking (Lịch hẹn ca tập huấn luyện viên cá nhân 1-1 - BR-12, BR-16, BR-17, BR-18, BR-23, BR-25)
+-- Ca PT diễn ra ở khu tập tự do nên KHÔNG gắn với phòng tập (BR-15 chỉ áp dụng cho lớp nhóm).
+-- Trạng thái 'Late_Cancelled' (BR-25): hủy muộn < 24h trước giờ tập, vẫn bị trừ 1 buổi.
 CREATE TABLE pt_booking (
     booking_id      SERIAL,
     member_user_id  INT         NOT NULL,
@@ -365,6 +388,7 @@ CREATE TABLE pt_booking (
     end_time        TIMESTAMP   NOT NULL,
     status          VARCHAR(20) NOT NULL DEFAULT 'Scheduled',
     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id INT,
     CONSTRAINT pk_pt_booking PRIMARY KEY (booking_id),
     CONSTRAINT fk_booking_member FOREIGN KEY (member_user_id)
         REFERENCES member_profile (user_id) ON DELETE RESTRICT,
@@ -374,19 +398,22 @@ CREATE TABLE pt_booking (
         REFERENCES member_subscription (subscription_id) ON DELETE RESTRICT,
     CONSTRAINT fk_booking_subscription_member FOREIGN KEY (subscription_id, member_user_id)
         REFERENCES member_subscription (subscription_id, member_user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_booking_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT ex_pt_trainer_no_overlap EXCLUDE USING gist (
         trainer_user_id WITH =,
         tsrange(start_time, end_time, '[)') WITH &&
-    ) WHERE (status <> 'Cancelled'),
+    ) WHERE (status NOT IN ('Cancelled', 'Late_Cancelled')),
     CONSTRAINT ex_pt_member_no_overlap EXCLUDE USING gist (
         member_user_id WITH =,
         tsrange(start_time, end_time, '[)') WITH &&
-    ) WHERE (status <> 'Cancelled'),
+    ) WHERE (status NOT IN ('Cancelled', 'Late_Cancelled')),
     CONSTRAINT chk_pt_booking_time CHECK (end_time > start_time),
-    CONSTRAINT chk_pt_booking_status CHECK (status IN ('Scheduled', 'Completed', 'Cancelled', 'No_Show'))
+    CONSTRAINT chk_pt_booking_date CHECK (booking_date = start_time::DATE),
+    CONSTRAINT chk_pt_booking_status CHECK (status IN ('Scheduled', 'Completed', 'Cancelled', 'Late_Cancelled', 'No_Show'))
 );
 
--- Bảng 17: equipment_reservation (Giữ chỗ máy móc trước giờ tập - BR-21)
+-- Bảng 17: equipment_reservation (Giữ chỗ máy móc trước giờ tập - BR-21: 1 thiết bị không bị giữ trùng giờ)
 CREATE TABLE equipment_reservation (
     reservation_id SERIAL,
     equipment_id   INT         NOT NULL,
@@ -402,6 +429,10 @@ CREATE TABLE equipment_reservation (
         REFERENCES pt_booking (booking_id) ON DELETE CASCADE,
     CONSTRAINT fk_reservation_class FOREIGN KEY (class_id)
         REFERENCES class_schedule (class_id) ON DELETE CASCADE,
+    CONSTRAINT ex_reservation_equipment_no_overlap EXCLUDE USING gist (
+        equipment_id WITH =,
+        tsrange(start_time, end_time, '[)') WITH &&
+    ) WHERE (status <> 'Cancelled'),
     CONSTRAINT chk_reservation_time CHECK (end_time > start_time),
     CONSTRAINT chk_reservation_status CHECK (status IN ('Reserved', 'Completed', 'Cancelled')),
     CONSTRAINT chk_reservation_source CHECK (
@@ -410,7 +441,7 @@ CREATE TABLE equipment_reservation (
     )
 );
 
--- Bảng 18: maintenance_log (Nhật ký sửa chữa và bảo dưỡng thiết bị - BR-20)
+-- Bảng 18: maintenance_log (Nhật ký sửa chữa và bảo dưỡng thiết bị - BR-20, BR-23)
 CREATE TABLE maintenance_log (
     maintenance_id    SERIAL,
     equipment_id      INT            NOT NULL,
@@ -421,11 +452,14 @@ CREATE TABLE maintenance_log (
     cost              DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     status            VARCHAR(20)    NOT NULL DEFAULT 'In_Progress',
     created_at        TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id INT,
     CONSTRAINT pk_maintenance_log PRIMARY KEY (maintenance_id),
     CONSTRAINT fk_maintenance_equipment FOREIGN KEY (equipment_id)
         REFERENCES equipment (equipment_id) ON DELETE RESTRICT,
     CONSTRAINT fk_maintenance_staff FOREIGN KEY (staff_user_id)
         REFERENCES staff_profile (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_maintenance_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_maintenance_cost CHECK (cost >= 0),
     CONSTRAINT chk_maintenance_status CHECK (status IN ('In_Progress', 'Completed', 'Cancelled')),
     CONSTRAINT chk_maintenance_time CHECK (end_time IS NULL OR end_time >= start_time)
@@ -439,10 +473,13 @@ CREATE INDEX idx_user_account_status ON user_account (status);
 CREATE INDEX idx_member_subscription_member ON member_subscription (member_user_id);
 CREATE INDEX idx_member_subscription_status ON member_subscription (sub_status);
 CREATE INDEX idx_member_subscription_dates ON member_subscription (start_time, end_time);
-CREATE INDEX idx_billing_log_subscription ON billing_log (subscription_id);
+-- Thay cho idx_billing_log_subscription (subscription_id): chỉ mục ghép bao trùm tiền tố subscription_id
+-- và phục vụ luôn truy vấn "lịch sử hóa đơn mới nhất của một hợp đồng" (ORDER BY payment_date DESC).
+CREATE INDEX idx_billing_log_subscription_date ON billing_log (subscription_id, payment_date DESC);
 CREATE INDEX idx_billing_log_payment_date ON billing_log (payment_date);
 CREATE INDEX idx_pt_booking_trainer ON pt_booking (trainer_user_id);
 CREATE INDEX idx_pt_booking_member ON pt_booking (member_user_id);
+CREATE INDEX idx_pt_booking_subscription ON pt_booking (subscription_id);
 CREATE INDEX idx_pt_booking_dates ON pt_booking (start_time, end_time);
 CREATE INDEX idx_class_schedule_trainer ON class_schedule (trainer_user_id);
 CREATE INDEX idx_class_schedule_room ON class_schedule (room_id);

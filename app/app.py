@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime, timedelta
+from contextlib import contextmanager
 
 # ============================================================================
 # CẤU HÌNH TRANG VÀ GIAO DIỆN STREAMLIT
@@ -84,8 +85,9 @@ st.markdown("""
 DB_HOST = os.environ.get("DB_HOST", "localhost")
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_NAME = os.environ.get("DB_NAME", "gym_management")
-DB_USER = os.environ.get("DB_USER", "gym_admin")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "gym_password_2026")
+# Ứng dụng đăng nhập bằng tài khoản KHÔNG phải superuser (gym_u_admin thuộc nhóm quyền gym_role_admin, xem 08_rbac_security.sql)
+DB_USER = os.environ.get("DB_USER", "gym_u_admin")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "demo_2026")
 
 @st.cache_resource
 def get_db_connection():
@@ -112,7 +114,7 @@ def run_query(query, params=None, is_select=True):
             st.cache_resource.clear()
             conn = get_db_connection()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(query, params or ())
+            cur.execute(query, params)  # params=None: không nội suy %, an toàn với câu SQL chứa LIKE/%
             if is_select:
                 records = cur.fetchall()
                 conn.commit()
@@ -123,6 +125,55 @@ def run_query(query, params=None, is_select=True):
     except Exception as e:
         conn.rollback()
         raise e
+
+def get_operator_id():
+    """Mã nhân viên đang thao tác (chọn ở sidebar), dùng cho vết kiểm toán BR-23."""
+    return st.session_state.get("operator_id")
+
+@contextmanager
+def db_tx(commit=True):
+    """Mở một giao dịch: đặt app.current_user_id (SET LOCAL) để trigger BR-23 ghi created_by_user_id.
+    commit=False thì luôn ROLLBACK khi kết thúc (dùng cho phép thử không được lưu)."""
+    conn = get_db_connection()
+    if not conn:
+        raise RuntimeError("Không thể kết nối tới PostgreSQL")
+    if conn.closed:
+        st.cache_resource.clear()
+        conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            op = get_operator_id()
+            cur.execute("SELECT set_config('app.current_user_id', %s, true);", ("" if op is None else str(op),))
+            del conn.notices[:]
+            yield cur
+        if commit:
+            conn.commit()
+        else:
+            conn.rollback()
+    except Exception:
+        conn.rollback()
+        raise
+
+def pop_notices():
+    """Lấy các thông báo RAISE NOTICE của trigger/thủ tục trong giao dịch vừa chạy."""
+    conn = get_db_connection()
+    notes = [n.strip() for n in conn.notices]
+    del conn.notices[:]
+    return notes
+
+def explain_db_error(ex):
+    """Chuyển lỗi CSDL thành thông báo tiếng Việt dễ hiểu (đặc biệt các lỗi BR-18)."""
+    msg = str(ex).strip().splitlines()[0] if str(ex).strip() else repr(ex)
+    code = getattr(ex, "pgcode", None)
+    if "BR-18" in msg:
+        return f"Không thể đặt ca PT (BR-18): {msg}"
+    if "uq_member_one_active_subscription" in msg:
+        return "Hội viên này đã có một hợp đồng Active khác (BR-05: mỗi hội viên chỉ có 1 hợp đồng Active tại một thời điểm)."
+    if code == "23P01":
+        return f"Trùng lịch bị CSDL chặn (BR-12/BR-15): {msg}"
+    if code == "42501":
+        return f"Tài khoản CSDL không đủ quyền thực hiện thao tác này: {msg}"
+    return msg
 
 # ============================================================================
 # THANH BÊN (SIDEBAR) & ĐIỀU HƯỚNG
@@ -151,6 +202,32 @@ with st.sidebar:
         index=0
     )
     
+    st.markdown("---")
+    try:
+        _ops_df = run_query("""
+            SELECT u.user_id, u.full_name, r.role_name
+            FROM user_account u
+            JOIN user_role ur ON u.user_id = ur.user_id
+            JOIN role r ON ur.role_id = r.role_id
+            WHERE r.role_name IN ('Admin', 'Receptionist', 'Technician', 'Trainer')
+              AND u.status = 'Active'
+            ORDER BY r.role_id, u.user_id;
+        """)
+    except Exception:
+        _ops_df = None
+    if _ops_df is not None and not _ops_df.empty:
+        _op_labels = {int(r["user_id"]): f"{r['full_name']} ({r['role_name']})" for _, r in _ops_df.iterrows()}
+        st.selectbox(
+            "Người thao tác:",
+            list(_op_labels.keys()),
+            format_func=lambda uid: _op_labels[uid],
+            key="operator_id",
+            help="Mã nhân viên được ghi vào created_by_user_id (BR-23) qua SET LOCAL app.current_user_id trong mỗi giao dịch."
+        )
+    else:
+        st.caption("Chưa chọn được 'Người thao tác' (không đọc được danh sách nhân viên).")
+    st.caption(f"🔐 Kết nối CSDL bằng tài khoản: `{DB_USER}`")
+
     st.markdown("---")
     st.markdown("**Thông Tin Nhóm Sinh Viên:**")
     st.caption("1. Lê Hoàng Tiến - N25DCAT050")
@@ -294,10 +371,11 @@ elif menu == "👥 Quản Lý Hội Viên & Gói Tập":
     st.markdown('<div class="hero-title">Quản Lý Hội Viên & Hợp Đồng Gói Tập</div>', unsafe_allow_html=True)
     st.markdown('<div class="hero-subtitle">Thực hiện các thao tác Thêm, Xem, Cập nhật thông tin Hội viên và Đăng ký Hợp đồng mới</div>', unsafe_allow_html=True)
     
-    crud_tab1, crud_tab2, crud_tab3 = st.tabs([
+    crud_tab1, crud_tab2, crud_tab3, crud_tab4 = st.tabs([
         "📋 Danh Sách Hội Viên (Read)",
         "➕ Đăng Ký Hội Viên Mới (Create)",
-        "💳 Đăng Ký Gói Tập (Subscription)"
+        "💳 Đăng Ký Gói Tập (Subscription)",
+        "🔄 Gia Hạn Tự Động (BR-24)"
     ])
     
     with crud_tab1:
@@ -372,14 +450,21 @@ elif menu == "👥 Quản Lý Hội Viên & Gói Tập":
                                 st.success(f"✅ Đăng ký thành công hội viên mới! Mã định danh (User ID): {new_user_id}")
                                 st.rerun()
                         except Exception as ex:
-                            st.error(f"Lỗi cơ sở dữ liệu: {ex}")
+                            conn.rollback()
+                            st.error(f"Lỗi cơ sở dữ liệu: {explain_db_error(ex)}")
                             
     with crud_tab3:
         st.markdown("#### Ký Hợp Đồng & Đăng Ký Gói Tập Cho Hội Viên")
-        st.caption("Kích hoạt hợp đồng gói tập và tự động tạo hóa đơn thanh toán (BR-05, BR-08, BR-09).")
+        st.caption("Hợp đồng được tạo ở trạng thái Pending; khi hóa đơn Completed được ghi, trigger tự chuyển sang Active (BR-07). Mỗi hội viên chỉ có 1 hợp đồng Active (BR-05).")
         
         try:
-            members_list_df = run_query("SELECT user_id, full_name, phone FROM user_account WHERE status = 'Active' ORDER BY full_name;")
+            members_list_df = run_query("""
+                SELECT u.user_id, u.full_name, u.phone
+                FROM user_account u
+                JOIN member_profile mp ON mp.user_id = u.user_id
+                WHERE u.status = 'Active'
+                ORDER BY u.full_name;
+            """)
             plans_list_df = run_query("SELECT plan_id, plan_name, duration_days, total_sessions, price FROM membership_plan ORDER BY plan_id;")
             
             with st.form("form_subscribe"):
@@ -399,6 +484,7 @@ elif menu == "👥 Quản Lý Hội Viên & Gói Tập":
                     
                     pay_method = st.selectbox("Phương Thức Thanh Toán:", ["Banking", "Credit_Card", "Cash", "E_Wallet"])
                     
+                dry_run_sub = st.checkbox("Chạy thử (ROLLBACK, không lưu hợp đồng)", value=False, key="dry_sub")
                 sub_btn = st.form_submit_button("Xác Nhận Ký Hợp Đồng & Xuất Hóa Đơn", use_container_width=True)
                 
                 if sub_btn:
@@ -406,30 +492,86 @@ elif menu == "👥 Quản Lý Hội Viên & Gói Tập":
                     sessions = selected_plan['total_sessions']
                     price = selected_plan['price']
                     plan_id = selected_plan['plan_id']
-                    end_dt = datetime.combine(sub_start_date, datetime.min.time()) + timedelta(days=duration)
                     start_dt = datetime.combine(sub_start_date, datetime.min.time())
+                    end_dt = start_dt + timedelta(days=int(duration))
                     
-                    conn = get_db_connection()
-                    with conn.cursor() as cur:
-                        # 1. Tạo hợp đồng
-                        cur.execute("""
-                            INSERT INTO member_subscription (member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring)
-                            VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s)
-                            RETURNING subscription_id;
-                        """, (selected_member_id, plan_id, price, sessions, start_dt, end_dt, is_rec))
-                        new_sub_id = cur.fetchone()[0]
-                        
-                        # 2. Tạo hóa đơn thanh toán
-                        inv_no = f"INV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{new_sub_id}"
-                        cur.execute("""
-                            INSERT INTO billing_log (subscription_id, invoice_no, amount, payment_date, payment_method, payment_status)
-                            VALUES (%s, %s, %s, %s, %s, 'Completed');
-                        """, (new_sub_id, inv_no, price, date.today(), pay_method))
-                        conn.commit()
-                        
-                        st.success(f"🎉 Đã kích hoạt hợp đồng ID: {new_sub_id} và xuất hóa đơn số: {inv_no} thành công!")
+                    if float(price) <= 0:
+                        st.error("Gói tập có giá 0 đ không thể xuất hóa đơn Completed (chk_billing_amount: amount > 0), nên không thể kích hoạt theo BR-07.")
+                    else:
+                        try:
+                            with db_tx(commit=not dry_run_sub) as cur:
+                                # 1. Tạo hợp đồng ở trạng thái 'Pending' (BR-07: chưa thanh toán thì chưa Active)
+                                cur.execute("""
+                                    INSERT INTO member_subscription (member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring)
+                                    VALUES (%s, %s, %s, %s, %s, %s, 'Pending', %s)
+                                    RETURNING subscription_id;
+                                """, (int(selected_member_id), int(plan_id), price, int(sessions), start_dt, end_dt, is_rec))
+                                new_sub_id = cur.fetchone()[0]
+                                cur.execute("SELECT sub_status FROM member_subscription WHERE subscription_id = %s;", (new_sub_id,))
+                                status_before = cur.fetchone()[0]
+                                
+                                # 2. Ghi hóa đơn 'Completed' -> trigger trg_activate_on_payment_* tự chuyển hợp đồng sang 'Active'
+                                inv_no = f"INV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{new_sub_id}"
+                                cur.execute("""
+                                    INSERT INTO billing_log (subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status)
+                                    VALUES (%s, %s, %s, %s, %s, %s, 'Completed');
+                                """, (new_sub_id, sub_start_date, inv_no, price, date.today(), pay_method))
+                                cur.execute("SELECT sub_status, created_by_user_id FROM member_subscription WHERE subscription_id = %s;", (new_sub_id,))
+                                status_after, created_by = cur.fetchone()
+                                notes = pop_notices()
+                            
+                            st.success(
+                                f"🎉 Hợp đồng ID: {new_sub_id} (hóa đơn {inv_no}): trạng thái khi tạo = **{status_before}**, "
+                                f"sau khi thanh toán = **{status_after}** (trigger BR-07 tự kích hoạt). "
+                                f"Người thao tác (BR-23): {created_by if created_by is not None else 'không ghi nhận'}."
+                            )
+                            for n in notes:
+                                st.caption(f"📣 {n}")
+                            if dry_run_sub:
+                                st.info("Chế độ chạy thử: giao dịch đã ROLLBACK, không có dữ liệu nào được lưu.")
+                        except Exception as ex:
+                            st.error(f"Lỗi xử lý đăng ký gói: {explain_db_error(ex)}")
         except Exception as e:
-            st.error(f"Lỗi xử lý đăng ký gói: {e}")
+            st.error(f"Lỗi xử lý đăng ký gói: {explain_db_error(e)}")
+
+    with crud_tab4:
+        st.markdown("#### Gia Hạn Tự Động & Ân Hạn Hợp Đồng (BR-24)")
+        st.caption("Thủ tục sp_process_subscription_renewals() nên được cron gọi mỗi ngày: hợp đồng không tự gia hạn quá hạn -> Expired; "
+                   "hợp đồng tự gia hạn quá hạn -> phát hành hóa đơn Pending; quá thời gian ân hạn mà chưa thanh toán -> Suspended.")
+        c_r1, c_r2, c_r3 = st.columns(3)
+        with c_r1:
+            renew_as_of = st.date_input("Ngày xét (p_as_of):", value=date.today(), key="renew_as_of")
+        with c_r2:
+            renew_grace = st.number_input("Số ngày ân hạn (p_grace_days):", min_value=0, max_value=30, value=3, key="renew_grace")
+        with c_r3:
+            renew_dry = st.checkbox("Chạy thử (ROLLBACK, không lưu)", value=True, key="renew_dry")
+        
+        def _renewal_counts(cur):
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE sub_status = 'Active')    AS active_cnt,
+                    COUNT(*) FILTER (WHERE sub_status = 'Expired')   AS expired_cnt,
+                    COUNT(*) FILTER (WHERE sub_status = 'Suspended') AS suspended_cnt,
+                    COUNT(*) FILTER (WHERE sub_status = 'Pending')   AS pending_cnt,
+                    (SELECT COUNT(*) FROM billing_log WHERE payment_status = 'Pending') AS pending_invoices
+                FROM member_subscription;
+            """)
+            return cur.fetchone()
+        
+        if st.button("🔄 Gia hạn tự động (BR-24): CALL sp_process_subscription_renewals()", key="btn_renewal", use_container_width=True):
+            try:
+                with db_tx(commit=not renew_dry) as cur:
+                    before = _renewal_counts(cur)
+                    cur.execute("CALL sp_process_subscription_renewals(%s, %s);", (renew_as_of, int(renew_grace)))
+                    after = _renewal_counts(cur)
+                    notes = pop_notices()
+                labels = ["Active", "Expired", "Suspended", "Pending", "Hóa đơn Pending"]
+                st.dataframe(pd.DataFrame({"Chỉ số": labels, "Trước": list(before), "Sau": list(after)}), use_container_width=True)
+                for n in notes:
+                    st.success(f"📣 {n}")
+                st.info("Chế độ chạy thử: đã ROLLBACK, dữ liệu không đổi." if renew_dry else "Đã COMMIT: dữ liệu được cập nhật.")
+            except Exception as ex:
+                st.error(f"Lỗi khi gọi thủ tục gia hạn: {explain_db_error(ex)}")
 
 # ============================================================================
 # TRANG 3: LẬP LỊCH PT 1-1 & LỚP HỌC NHÓM
@@ -445,15 +587,18 @@ elif menu == "📅 Lập Lịch PT 1-1 & Lớp Nhóm":
     
     with sched_tab1:
         st.markdown("#### Tạo Mới Ca Tập PT 1-1 (BR-12, BR-18)")
+        st.caption("BR-18: hợp đồng phải đang Active, giờ tập nằm trong thời hạn hợp đồng và còn đủ buổi PT (số ca Scheduled < số buổi còn lại). "
+                   "Danh sách dưới đây hiển thị cả hợp đồng không hợp lệ để có thể thử các lỗi trên.")
         try:
-            # Lấy danh sách hội viên có gói PT còn số buổi
-            active_pt_subs = run_query("""
-                SELECT ms.subscription_id, ms.member_user_id, u.full_name, ms.remaining_sessions, mp.plan_name
+            # Các hợp đồng thuộc gói PT (total_sessions > 0), kèm trạng thái để minh họa BR-18
+            pt_subs = run_query("""
+                SELECT ms.subscription_id, ms.member_user_id, u.full_name, ms.remaining_sessions, ms.sub_status,
+                       ms.start_time AS sub_start, ms.end_time AS sub_end, mp.plan_name
                 FROM member_subscription ms
                 JOIN user_account u ON ms.member_user_id = u.user_id
                 JOIN membership_plan mp ON ms.plan_id = mp.plan_id
-                WHERE ms.sub_status = 'Active' AND ms.remaining_sessions > 0
-                ORDER BY u.full_name;
+                WHERE mp.total_sessions > 0
+                ORDER BY (ms.sub_status = 'Active') DESC, u.full_name, ms.subscription_id;
             """)
             
             trainers_df = run_query("""
@@ -464,11 +609,11 @@ elif menu == "📅 Lập Lịch PT 1-1 & Lớp Nhóm":
                 ORDER BY u.full_name;
             """)
             
-            if active_pt_subs is not None and not active_pt_subs.empty:
+            if pt_subs is not None and not pt_subs.empty:
                 with st.form("form_pt_booking"):
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
-                        sub_opts = {f"{r['full_name']} (Còn {r['remaining_sessions']} buổi - HĐ #{r['subscription_id']})": r for _, r in active_pt_subs.iterrows()}
+                        sub_opts = {f"{r['full_name']} (HĐ #{r['subscription_id']} - {r['sub_status']} - Còn {r['remaining_sessions']} buổi - hạn {r['sub_end']:%d/%m/%Y})": r for _, r in pt_subs.iterrows()}
                         sel_sub_str = st.selectbox("Chọn Hội Viên & Hợp Đồng PT:", list(sub_opts.keys()))
                         sel_sub_data = sub_opts[sel_sub_str]
                         
@@ -481,6 +626,7 @@ elif menu == "📅 Lập Lịch PT 1-1 & Lớp Nhóm":
                         
                         b_end_time = st.time_input("Giờ Kết Thúc (tối thiểu 60 phút):", value=datetime.strptime("10:30", "%H:%M").time())
                         
+                    dry_run_pt = st.checkbox("Chạy thử (ROLLBACK, không lưu ca tập)", value=False, key="dry_pt")
                     pt_book_btn = st.form_submit_button("Xác Nhận Đặt Ca Tập PT", use_container_width=True)
                     
                     if pt_book_btn:
@@ -491,22 +637,70 @@ elif menu == "📅 Lập Lịch PT 1-1 & Lớp Nhóm":
                             st.error("Thời gian kết thúc phải lớn hơn thời gian bắt đầu (BR-17).")
                         else:
                             try:
-                                conn = get_db_connection()
-                                with conn.cursor() as cur:
+                                with db_tx(commit=not dry_run_pt) as cur:
                                     cur.execute("""
                                         INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
                                         VALUES (%s, %s, %s, %s, %s, %s, 'Scheduled')
                                         RETURNING booking_id;
-                                    """, (sel_sub_data['member_user_id'], sel_trainer_id, sel_sub_data['subscription_id'], b_date, start_dt, end_dt))
+                                    """, (int(sel_sub_data['member_user_id']), int(sel_trainer_id), int(sel_sub_data['subscription_id']), b_date, start_dt, end_dt))
                                     new_booking_id = cur.fetchone()[0]
-                                    conn.commit()
-                                    st.success(f"✅ Đã đặt ca tập PT thành công! Mã ca tập: #{new_booking_id}")
+                                st.success(f"✅ Đã đặt ca tập PT thành công! Mã ca tập: #{new_booking_id}" + (" (chạy thử: đã ROLLBACK)" if dry_run_pt else ""))
                             except Exception as ex:
-                                st.error(f"Lỗi: {ex}")
+                                st.error(f"❌ {explain_db_error(ex)}")
             else:
-                st.info("Hiện không có hội viên nào có gói PT còn số buổi khả dụng.")
+                st.info("Hiện không có hợp đồng gói PT nào trong hệ thống.")
         except Exception as e:
-            st.error(f"Lỗi lấy thông tin: {e}")
+            st.error(f"Lỗi lấy thông tin: {explain_db_error(e)}")
+        
+        # ---- Hủy ca PT (BR-25) ----
+        st.markdown("---")
+        st.markdown("#### Hủy Ca Tập PT Đang 'Scheduled' (BR-25)")
+        st.caption("Hủy khi còn từ 24 giờ trở lên -> 'Cancelled' (không trừ buổi). Hủy khi còn dưới 24 giờ -> trigger tự đổi thành 'Late_Cancelled' và trừ 1 buổi.")
+        try:
+            sched_pts = run_query("""
+                SELECT pb.booking_id, pb.start_time, m.full_name AS member_name, t.full_name AS trainer_name,
+                       ms.subscription_id, ms.remaining_sessions,
+                       (pb.start_time < CURRENT_TIMESTAMP::TIMESTAMP + INTERVAL '24 hours') AS is_late
+                FROM pt_booking pb
+                JOIN user_account m ON pb.member_user_id = m.user_id
+                JOIN user_account t ON pb.trainer_user_id = t.user_id
+                JOIN member_subscription ms ON pb.subscription_id = ms.subscription_id
+                WHERE pb.status = 'Scheduled'
+                ORDER BY pb.start_time ASC
+                LIMIT 200;
+            """)
+            if sched_pts is not None and not sched_pts.empty:
+                cancel_opts = {
+                    f"Ca #{r['booking_id']} - {r['member_name']} với {r['trainer_name']} - {r['start_time']:%d/%m/%Y %H:%M}"
+                    f"{' [dưới 24h]' if r['is_late'] else ''} (HĐ còn {r['remaining_sessions']} buổi)": r
+                    for _, r in sched_pts.iterrows()
+                }
+                sel_cancel_str = st.selectbox("Chọn ca cần hủy:", list(cancel_opts.keys()), key="sel_cancel_pt")
+                sel_cancel = cancel_opts[sel_cancel_str]
+                cancel_dry = st.checkbox("Chạy thử (ROLLBACK, không lưu việc hủy)", value=False, key="dry_cancel")
+                if st.button("❌ Hủy ca", key="btn_cancel_pt"):
+                    try:
+                        with db_tx(commit=not cancel_dry) as cur:
+                            cur.execute("SELECT remaining_sessions FROM member_subscription WHERE subscription_id = %s;", (int(sel_cancel['subscription_id']),))
+                            remain_before = cur.fetchone()[0]
+                            cur.execute("UPDATE pt_booking SET status = 'Cancelled' WHERE booking_id = %s AND status = 'Scheduled' RETURNING status;", (int(sel_cancel['booking_id']),))
+                            row = cur.fetchone()
+                            cur.execute("SELECT remaining_sessions FROM member_subscription WHERE subscription_id = %s;", (int(sel_cancel['subscription_id']),))
+                            remain_after = cur.fetchone()[0]
+                        if row is None:
+                            st.warning("Ca tập không còn ở trạng thái Scheduled (có thể đã bị hủy/hoàn tất bởi người khác).")
+                        elif row[0] == 'Late_Cancelled':
+                            st.warning(f"⚠️ Ca #{sel_cancel['booking_id']} hủy khi còn dưới 24 giờ nên được ghi nhận **Late_Cancelled**: số buổi còn lại {remain_before} -> {remain_after} (bị trừ 1 buổi, BR-25).")
+                        else:
+                            st.success(f"✅ Ca #{sel_cancel['booking_id']} đã được hủy với trạng thái **{row[0]}** (hủy trước 24 giờ, không trừ buổi): số buổi còn lại {remain_before} -> {remain_after}.")
+                        if cancel_dry:
+                            st.info("Chế độ chạy thử: đã ROLLBACK, ca tập vẫn ở trạng thái Scheduled.")
+                    except Exception as ex:
+                        st.error(f"❌ {explain_db_error(ex)}")
+            else:
+                st.info("Hiện không có ca PT nào ở trạng thái Scheduled để hủy.")
+        except Exception as e:
+            st.error(f"Lỗi lấy danh sách ca PT: {explain_db_error(e)}")
             
     with sched_tab2:
         st.markdown("#### Xếp Lịch Lớp Học Nhóm Mới")
@@ -543,18 +737,16 @@ elif menu == "📅 Lập Lịch PT 1-1 & Lớp Nhóm":
                         st.error("Thời gian kết thúc phải lớn hơn thời gian bắt đầu.")
                     else:
                         try:
-                            conn = get_db_connection()
-                            with conn.cursor() as cur:
+                            with db_tx() as cur:
                                 cur.execute("""
                                     INSERT INTO class_schedule (trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled)
                                     VALUES (%s, %s, %s, %s, %s, %s, 0)
                                     RETURNING class_id;
-                                """, (sel_tr_id, sel_rm_data['room_id'], cls_name, dt_start, dt_end, cls_capacity))
+                                """, (int(sel_tr_id), int(sel_rm_data['room_id']), cls_name, dt_start, dt_end, int(cls_capacity)))
                                 new_cls_id = cur.fetchone()[0]
-                                conn.commit()
-                                st.success(f"✅ Đã thêm lớp học thành công! Mã lớp: #{new_cls_id}")
+                            st.success(f"✅ Đã thêm lớp học thành công! Mã lớp: #{new_cls_id}")
                         except Exception as ex:
-                            st.error(f"❌ Cơ sở dữ liệu từ chối: {ex}")
+                            st.error(f"❌ Cơ sở dữ liệu từ chối: {explain_db_error(ex)}")
         except Exception as e:
             st.error(f"Lỗi: {e}")
 
@@ -583,6 +775,8 @@ JOIN
     billing_log bl ON ms.subscription_id = bl.subscription_id
 WHERE
     bl.payment_status = 'Completed'
+    AND bl.payment_date >= DATE_TRUNC('quarter', CURRENT_DATE)
+    AND bl.payment_date <  DATE_TRUNC('quarter', CURRENT_DATE) + INTERVAL '3 months'
 GROUP BY
     mp.plan_id,
     mp.plan_name
@@ -596,21 +790,30 @@ ORDER BY
             "business": "Tính tổng số giờ dạy cả hai hình thức: Dạy kèm PT 1-1 và Lớp nhóm trong tháng để xếp hạng trao thưởng KPI cho Huấn luyện viên.",
             "technique": "UNION ALL trong CTE, EXTRACT(EPOCH), GROUP BY, HAVING, ORDER BY LIMIT 3",
             "sql": """WITH trainer_teaching_hours AS (
+    -- Nguồn 1: Giờ dạy kèm 1-1 (PT_BOOKING) trạng thái Completed
     SELECT
         pb.trainer_user_id AS trainer_id,
-        ROUND((EXTRACT(EPOCH FROM (pb.end_time - pb.start_time)) / 3600.0)::NUMERIC, 2) AS hours_taught
+        ROUND((EXTRACT(EPOCH FROM (pb.end_time - pb.start_time)) / 3600.0)::NUMERIC, 2) AS hours_taught,
+        'PT_1_ON_1' AS teaching_type
     FROM
         pt_booking pb
     WHERE
         pb.status = 'Completed'
+        AND pb.booking_date >= DATE_TRUNC('month', CURRENT_DATE)
+        AND pb.booking_date <  DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
 
     UNION ALL
 
+    -- Nguồn 2: Giờ đứng lớp học nhóm (CLASS_SCHEDULE)
     SELECT
         cs.trainer_user_id AS trainer_id,
-        ROUND((EXTRACT(EPOCH FROM (cs.end_time - cs.start_time)) / 3600.0)::NUMERIC, 2) AS hours_taught
+        ROUND((EXTRACT(EPOCH FROM (cs.end_time - cs.start_time)) / 3600.0)::NUMERIC, 2) AS hours_taught,
+        'GROUP_CLASS' AS teaching_type
     FROM
         class_schedule cs
+    WHERE
+        cs.start_time >= DATE_TRUNC('month', CURRENT_DATE)
+        AND cs.start_time <  DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
 )
 SELECT
     u.user_id AS trainer_id,
@@ -708,6 +911,7 @@ ORDER BY
     cs.class_name,
     u.full_name AS instructor_name,
     fr.room_name,
+    cs.start_time,
     cs.max_capacity,
     cs.current_enrolled,
     ROUND((cs.current_enrolled::NUMERIC / cs.max_capacity::NUMERIC) * 100.0, 2) AS fill_rate_percentage,
@@ -724,14 +928,15 @@ JOIN
 JOIN
     facilities_room fr ON cs.room_id = fr.room_id
 ORDER BY
-    fill_rate_percentage DESC;""",
+    fill_rate_percentage DESC,
+    cs.start_time ASC;""",
             "chart_type": "bar",
             "x": "class_name",
             "y": "fill_rate_percentage"
         },
         "6. Danh sách ca tập PT 1-1 bị hủy muộn hoặc bỏ tập (No-show)": {
-            "business": "Kiểm toán việc thực thi quy định trừ buổi khi hội viên vắng mặt không báo trước (BR-25).",
-            "technique": "JOIN 3 bảng, WHERE status IN ('Cancelled', 'No_Show'), CASE WHEN giải thích chế tài",
+            "business": "Kiểm toán việc thực thi quy định trừ buổi (BR-25): hội viên vắng mặt (No_Show) hoặc hủy muộn dưới 24 giờ (Late_Cancelled) bị trừ 1 buổi; hủy sớm (Cancelled) thì không.",
+            "technique": "JOIN 3 bảng, WHERE status IN ('Cancelled', 'Late_Cancelled', 'No_Show'), CASE WHEN giải thích chế tài",
             "sql": """SELECT
     pb.booking_id,
     pb.booking_date,
@@ -742,8 +947,9 @@ ORDER BY
     t.full_name AS trainer_name,
     pb.status AS incident_status,
     CASE pb.status
-        WHEN 'No_Show'   THEN 'Hội viên không đến và không báo trước (Trừ 1 buổi theo BR-25)'
-        WHEN 'Cancelled' THEN 'Hủy lịch tập (Kiểm tra thời gian hủy trước 24h)'
+        WHEN 'No_Show'        THEN 'Hội viên không đến và không báo trước (Trừ 1 buổi theo BR-25)'
+        WHEN 'Late_Cancelled' THEN 'Hủy muộn khi còn dưới 24 giờ (Trừ 1 buổi theo BR-25)'
+        WHEN 'Cancelled'      THEN 'Hủy sớm trước 24 giờ (Không trừ buổi theo BR-25)'
         ELSE pb.status
     END AS rule_penalty_note
 FROM
@@ -753,9 +959,10 @@ JOIN
 JOIN
     user_account t ON pb.trainer_user_id = t.user_id
 WHERE
-    pb.status IN ('Cancelled', 'No_Show')
+    pb.status IN ('Cancelled', 'Late_Cancelled', 'No_Show')
 ORDER BY
-    pb.booking_date DESC;""",
+    pb.booking_date DESC,
+    pb.start_time DESC;""",
             "chart_type": "table_only"
         },
         "7. Hội viên đã mua gói PT nhưng chưa từng đặt lịch buổi nào": {
@@ -796,10 +1003,10 @@ ORDER BY
         u.dob,
         EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) AS age,
         CASE
-            WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) < 25 THEN 'Dưới 25 tuổi (Học sinh - Sinh viên)'
-            WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) BETWEEN 25 AND 35 THEN '25 - 35 tuổi (Người trẻ đi làm)'
-            WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) BETWEEN 36 AND 50 THEN '36 - 50 tuổi (Trung niên - Gia đình)'
-            ELSE 'Trên 50 tuổi (Cao niên)'
+            WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) < 25 THEN 'Nhóm 1: Dưới 25 tuổi (Học sinh - Sinh viên)'
+            WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) BETWEEN 25 AND 35 THEN 'Nhóm 2: 25 - 35 tuổi (Người trẻ đi làm)'
+            WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, u.dob)) BETWEEN 36 AND 50 THEN 'Nhóm 3: 36 - 50 tuổi (Trung niên - Gia đình)'
+            ELSE 'Nhóm 4: Trên 50 tuổi (Cao niên - Phục hồi sức khỏe)'
         END AS age_bracket,
         mp.plan_name
     FROM
@@ -842,6 +1049,7 @@ ORDER BY
     u.user_id AS member_id,
     u.full_name AS member_name,
     u.phone,
+    u.email,
     COUNT(bl.billing_id) AS total_bills_paid,
     SUM(bl.amount)       AS total_money_spent,
     DENSE_RANK() OVER (ORDER BY SUM(bl.amount) DESC) AS spending_rank,
@@ -861,16 +1069,18 @@ WHERE
 GROUP BY
     u.user_id,
     u.full_name,
-    u.phone
+    u.phone,
+    u.email
 ORDER BY
     spending_rank ASC,
     total_money_spent DESC;""",
             "chart_type": "table_only"
         },
         "10. Phát hiện xung đột lịch tập (Overlapping Intervals) của HLV": {
-            "business": "Kiểm toán tính toàn vẹn (Integrity Check) để phát hiện bất kỳ sự kiện nào bị trùng giờ của cùng 1 Huấn luyện viên.",
+            "business": "Kiểm toán tính toàn vẹn (Integrity Check) để phát hiện bất kỳ sự kiện nào bị trùng giờ của cùng 1 Huấn luyện viên. Vì BR-12/BR-15/BR-16 đã được CSDL cưỡng chế nên kết quả kỳ vọng là 0 dòng.",
             "technique": "CTE (WITH), Self-Join khoảng thời gian giao nhau (start_a < end_b AND end_a > start_b)",
             "sql": """WITH all_trainer_events AS (
+    -- Tập hợp tất cả sự kiện có sự tham gia của HLV (Lớp nhóm)
     SELECT
         cs.class_id AS event_id,
         'GROUP_CLASS' AS event_type,
@@ -883,6 +1093,7 @@ ORDER BY
 
     UNION ALL
 
+    -- Tập hợp tất cả ca dạy PT 1-1 chưa bị hủy
     SELECT
         pb.booking_id AS event_id,
         'PT_BOOKING' AS event_type,
@@ -911,13 +1122,13 @@ FROM
     all_trainer_events e1
 JOIN
     all_trainer_events e2 ON e1.trainer_id = e2.trainer_id
-                         AND e1.event_id <> e2.event_id
+                         -- Điều kiện chồng lấn thời gian (Overlapping intervals)
                          AND e1.start_time < e2.end_time
                          AND e1.end_time > e2.start_time
 JOIN
     user_account u ON e1.trainer_id = u.user_id
 WHERE
-    e1.event_id < e2.event_id
+    (e1.event_type, e1.event_id) < (e2.event_type, e2.event_id) -- Tránh lặp lại kết quả theo thứ tự hoán vị
 ORDER BY
     e1.start_time ASC;""",
             "chart_type": "table_only"
@@ -963,7 +1174,7 @@ elif menu == "⚡ Kiểm Thử Triggers & Ràng Buộc":
     
     t_tab1, t_tab2, t_tab3 = st.tabs([
         "⚡ Test 1: Tự Động Trừ Buổi PT (trg_update_remaining_pt_sessions)",
-        "🚫 Test 2: Chặn Xếp Lịch Vào Phòng Bảo Trì (trg_prevent_booking_under_maintenance)",
+        "🚫 Test 2: Chặn Xếp Lịch Vào Phòng Bảo Trì (trg_prevent_class_in_maintenance_room)",
         "🛑 Test 3: Chặn Đăng Ký Hội Viên Dưới 12 Tuổi (BR-03)"
     ])
     
@@ -996,23 +1207,27 @@ elif menu == "⚡ Kiểm Thử Triggers & Ràng Buộc":
                 sel_pt_test = pt_opts[sel_pt_test_str]
                 
                 if st.button("👉 Kích Hoạt Chuyển Trạng Thái Thành 'Completed'", key="btn_trigger_pt"):
+                    conn = get_db_connection()
                     try:
-                        conn = get_db_connection()
                         with conn.cursor() as cur:
-                            cur.execute("UPDATE pt_booking SET status = 'Completed' WHERE booking_id = %s;", (sel_pt_test['booking_id'],))
-                            conn.commit()
-                            
-                        # Kiểm tra lại số buổi trong subscription
-                        after_check = run_query("SELECT remaining_sessions FROM member_subscription WHERE subscription_id = %s;", (sel_pt_test['subscription_id'],))
-                        new_remain = after_check['remaining_sessions'].iloc[0]
+                            cur.execute("UPDATE pt_booking SET status = 'Completed' WHERE booking_id = %s;", (int(sel_pt_test['booking_id']),))
+                            # Đọc lại số buổi trong cùng giao dịch (trước khi rollback)
+                            cur.execute("SELECT remaining_sessions FROM member_subscription WHERE subscription_id = %s;", (int(sel_pt_test['subscription_id']),))
+                            new_remain = cur.fetchone()[0]
                         
                         st.success(f"""
                         🎉 TRIGGER ĐÃ KÍCH HOẠT THÀNH CÔNG!
                         - Số buổi ban đầu: **{sel_pt_test['remaining_sessions']}**
                         - Số buổi sau khi Trigger trừ tự động: **{new_remain}** (Đã trừ đúng 1 buổi!)
+                        - Phép thử chạy trong một giao dịch và đã ROLLBACK nên dữ liệu thật không bị thay đổi.
                         """)
                     except Exception as ex:
                         st.error(f"Lỗi từ Trigger: {ex}")
+                    finally:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
             else:
                 st.info("Hiện không có ca tập nào đang ở trạng thái 'Scheduled'.")
         except Exception as e:
@@ -1029,44 +1244,64 @@ elif menu == "⚡ Kiểm Thử Triggers & Ràng Buộc":
             
             if st.button("🔥 Thử Nghiệm Xếp Lớp Vào Phòng Đang Bảo Trì Này", key="btn_trigger_maint"):
                 try:
-                    conn = get_db_connection()
-                    with conn.cursor() as cur:
+                    with db_tx(commit=False) as cur:
                         cur.execute("""
                             INSERT INTO class_schedule (trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled)
-                            VALUES (5, %s, 'Lớp Boxing Cấm Xếp', '2026-11-01 08:00:00', '2026-11-01 09:30:00', 10, 0);
+                            VALUES (5, %s, 'Lớp Boxing Cấm Xếp',
+                                    DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '3 days 21 hours',
+                                    DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '3 days 22 hours 30 minutes', 10, 0);
                         """, (int(m_rooms['room_id'].iloc[0]),))
-                        conn.commit()
-                    st.error("Cảnh báo: Lệnh INSERT không bị chặn! Cần kiểm tra lại trigger.")
+                    st.error("Cảnh báo: Lệnh INSERT không bị chặn! Cần kiểm tra lại trigger (dữ liệu thử nghiệm đã được ROLLBACK).")
                 except Exception as ex:
-                    st.success(f"""
-                    🛡️ TRIGGER ĐÃ BẢO VỆ CSDL THÀNH CÔNG!
-                    CSDL PostgreSQL đã chủ động ném lỗi ngoại lệ (Raise Exception) ngăn chặn thao tác:
-                    ```
-                    {ex}
-                    ```
-                    """)
+                    if getattr(ex, "pgcode", None) == "P0001" and "BR-19" in str(ex):
+                        st.success(f"""
+                        🛡️ TRIGGER ĐÃ BẢO VỆ CSDL THÀNH CÔNG!
+                        CSDL PostgreSQL đã chủ động ném lỗi ngoại lệ (Raise Exception) ngăn chặn thao tác:
+                        ```
+                        {ex}
+                        ```
+                        """)
+                    else:
+                        st.warning(f"Phép thử gặp lỗi không phải do Trigger BR-19 (chưa chứng minh được ràng buộc): {ex}")
         else:
             st.info("Hiện không có phòng nào ở trạng thái Under_Maintenance.")
             
     with t_tab3:
         st.markdown("#### Kiểm thử: Chặn Đăng Ký Hội Viên Dưới 12 Tuổi (BR-03)")
-        st.caption("Quy tắc BR-03: Ngày sinh người dùng (dob) phải đủ từ 12 tuổi trở lên. CSDL sẽ chặn bằng Trigger trg_check_user_dob.")
+        st.caption("Quy tắc BR-03: Hội viên phải đủ 12 tuổi trở lên. CSDL chặn bằng Trigger trg_check_member_dob (BEFORE INSERT trên member_profile) và trg_check_user_dob_for_member (BEFORE UPDATE OF dob trên user_account). Phép thử chạy trong một giao dịch và luôn ROLLBACK, không để lại dữ liệu.")
         
         if st.button("🔥 Thử Nghiệm Đăng Ký Hội Viên 8 Tuổi (Sinh năm 2018)", key="btn_trigger_dob"):
-            try:
-                conn = get_db_connection()
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO user_account (full_name, email, phone, dob, emergency_contact, password_hash, status)
-                        VALUES ('Bé Thử Nghiệm 8 Tuổi', 'be8tuoi.test@fitzone.vn', '0999888777', '2018-05-10', 'Bố: 0999888666', 'hash', 'Active');
-                    """)
-                    conn.commit()
-                st.error("Cảnh báo: Lệnh INSERT không bị chặn!")
-            except Exception as ex:
-                st.success(f"""
-                🛡️ RÀNG BUỘC BR-03 ĐÃ CHẶN THÀNH CÔNG!
-                CSDL PostgreSQL đã chủ động ném lỗi ngoại lệ:
-                ```
-                {ex}
-                ```
-                """)
+            conn = get_db_connection()
+            if not conn:
+                st.warning("Không thể kết nối tới PostgreSQL để chạy phép thử.")
+            else:
+                try:
+                    if conn.closed:
+                        st.cache_resource.clear()
+                        conn = get_db_connection()
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO user_account (full_name, email, phone, dob, emergency_contact, password_hash, status)
+                            VALUES ('Bé Thử Nghiệm 8 Tuổi', 'be8tuoi.test@fitzone.vn', '0999888777', '2018-05-10', 'Bố: 0999888666', 'hash', 'Active')
+                            RETURNING user_id;
+                        """)
+                        new_uid = cur.fetchone()[0]
+                        # Trigger BR-03 chặn tại bước tạo hồ sơ hội viên
+                        cur.execute("INSERT INTO member_profile (user_id, health_notes) VALUES (%s, 'Thử nghiệm BR-03');", (new_uid,))
+                    st.error("Cảnh báo: Lệnh INSERT không bị chặn! Cần kiểm tra lại trigger (dữ liệu thử nghiệm đã được ROLLBACK).")
+                except Exception as ex:
+                    if getattr(ex, "pgcode", None) == "P0001" and "BR-03" in str(ex):
+                        st.success(f"""
+                        🛡️ RÀNG BUỘC BR-03 ĐÃ CHẶN THÀNH CÔNG!
+                        CSDL PostgreSQL đã chủ động ném lỗi ngoại lệ:
+                        ```
+                        {ex}
+                        ```
+                        """)
+                    else:
+                        st.warning(f"Phép thử gặp lỗi không phải do Trigger BR-03 (chưa chứng minh được ràng buộc): {ex}")
+                finally:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass

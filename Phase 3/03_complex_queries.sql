@@ -196,6 +196,8 @@ ORDER BY
 -- Mục đích nghiệp vụ: Kiểm soát quy định hủy lịch (BR-25), thống kê các hội viên
 -- hay vắng mặt không lý do gây lãng phí thời gian biểu của Huấn luyện viên.
 -- Kỹ thuật SQL: JOIN 3 bảng, WHERE status IN (...), ORDER BY
+-- Ghi chú: 'Late_Cancelled' là ca hủy khi còn dưới 24 giờ (trigger trg_late_cancel_pt_booking
+-- tự đổi trạng thái và trừ 1 buổi); 'Cancelled' là hủy sớm, không bị trừ buổi.
 -- ============================================================================
 SELECT
     pb.booking_id,
@@ -207,8 +209,9 @@ SELECT
     t.full_name AS trainer_name,
     pb.status AS incident_status,
     CASE pb.status
-        WHEN 'No_Show'   THEN 'Hội viên không đến và không báo trước (Trừ 1 buổi theo BR-25)'
-        WHEN 'Cancelled' THEN 'Hủy lịch tập (Kiểm tra thời gian hủy trước 24h)'
+        WHEN 'No_Show'        THEN 'Hội viên không đến và không báo trước (Trừ 1 buổi theo BR-25)'
+        WHEN 'Late_Cancelled' THEN 'Hủy muộn khi còn dưới 24 giờ (Trừ 1 buổi theo BR-25)'
+        WHEN 'Cancelled'      THEN 'Hủy sớm trước 24 giờ (Không trừ buổi theo BR-25)'
         ELSE pb.status
     END AS rule_penalty_note
 FROM
@@ -218,7 +221,7 @@ JOIN
 JOIN
     user_account t ON pb.trainer_user_id = t.user_id
 WHERE
-    pb.status IN ('Cancelled', 'No_Show')
+    pb.status IN ('Cancelled', 'Late_Cancelled', 'No_Show')
 ORDER BY
     pb.booking_date DESC,
     pb.start_time DESC;
@@ -348,6 +351,9 @@ ORDER BY
 -- bất kỳ sự kiện nào bị đụng giờ (Overlapping Time Intervals - BR-12, BR-15) giữa
 -- các lớp học nhóm và ca tập PT 1-1 của cùng Huấn luyện viên.
 -- Kỹ thuật SQL: CTE (WITH), Self-Join khoảng thời gian (start_a < end_b AND end_a > start_b)
+-- Ghi chú: do các quy tắc BR-12/BR-15/BR-16 nay đã được CSDL cưỡng chế (EXCLUDE constraint và
+-- trigger), truy vấn này là truy vấn KIỂM TOÁN và được kỳ vọng trả về 0 dòng; nếu xuất hiện
+-- dòng nào thì dữ liệu đã bị nạp/sửa vượt qua cơ chế bảo vệ.
 -- ============================================================================
 WITH all_trainer_events AS (
     -- Tập hợp tất cả sự kiện có sự tham gia của HLV (Lớp nhóm)
@@ -392,13 +398,12 @@ FROM
     all_trainer_events e1
 JOIN
     all_trainer_events e2 ON e1.trainer_id = e2.trainer_id
-                         AND e1.event_id <> e2.event_id
                          -- Điều kiện chồng lấn thời gian (Overlapping intervals)
                          AND e1.start_time < e2.end_time
                          AND e1.end_time > e2.start_time
 JOIN
     user_account u ON e1.trainer_id = u.user_id
 WHERE
-    e1.event_id < e2.event_id -- Tránh lặp lại kết quả theo thứ tự hoán vị
+    (e1.event_type, e1.event_id) < (e2.event_type, e2.event_id) -- Tránh lặp lại kết quả theo thứ tự hoán vị
 ORDER BY
     e1.start_time ASC;

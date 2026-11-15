@@ -20,7 +20,13 @@
 --        (a) bình thường - bộ tối ưu hóa được dùng chỉ mục;
 --        (b) tắt Index Scan / Bitmap Scan - mô phỏng bảng KHÔNG có chỉ mục.
 --      So sánh thời gian thực thi (Execution Time) của (a) và (b).
---   3. Toàn bộ tập tin nằm trong BEGIN ... ROLLBACK => dữ liệu sinh tạm
+--   3. Các trigger nghiệp vụ trong 04_triggers_views.sql (BR-08, BR-18, kiểm tra
+--      chồng lấn chéo bảng, điền created_by...) sẽ từ chối dữ liệu tổng hợp vì
+--      dữ liệu sinh ra không gắn với hợp đồng/hội viên thực. Bài kiểm thử này chỉ
+--      đo hiệu năng ĐỌC, nên trigger của người dùng trên billing_log và
+--      pt_booking được tạm tắt CHỈ trong lúc nạp dữ liệu hàng loạt và được bật
+--      lại trước khi đo. Mọi ràng buộc CHECK/UNIQUE/EXCLUDE/FK vẫn luôn có hiệu lực.
+--   4. Toàn bộ tập tin nằm trong BEGIN ... ROLLBACK => dữ liệu sinh tạm
 --      bị hủy sau khi chạy, CSDL trở về nguyên trạng.
 --   Lưu ý: số mili-giây phụ thuộc cấu hình máy; điều cần quan sát là loại
 --   phép quét (Index Scan vs Seq Scan) và tỉ lệ chênh lệch giữa (a) và (b).
@@ -34,6 +40,12 @@ SET client_min_messages = WARNING;
 -- BƯỚC 1: SINH DỮ LIỆU KHỐI LƯỢNG LỚN (TẠM THỜI)
 -- ============================================================================
 
+-- Tạm tắt trigger người dùng (BR-08, BR-18, chồng lấn chéo bảng, created_by...) để nạp
+-- nhanh 320.000 dòng tổng hợp. Chỉ ảnh hưởng tới việc NẠP; các ràng buộc CHECK/UNIQUE/
+-- EXCLUDE/FK vẫn hoạt động. Trigger được bật lại ngay trước khi đo (cuối BƯỚC 1).
+ALTER TABLE billing_log DISABLE TRIGGER USER;
+ALTER TABLE pt_booking DISABLE TRIGGER USER;
+
 -- 100.000 tài khoản người dùng
 INSERT INTO user_account (full_name, email, phone, dob, password_hash)
 SELECT
@@ -46,19 +58,23 @@ FROM
     generate_series(1, 100000) AS g;
 
 -- 200.000 hóa đơn trải đều 3 năm (2024 - 2026) cho 30 hợp đồng có sẵn
-INSERT INTO billing_log (subscription_id, invoice_no, amount, payment_date, payment_method, payment_status)
+-- billing_period_start khác nhau cho từng dòng => thỏa chỉ mục duy nhất uq_billing_subscription_period (BR-08)
+-- (trigger tự điền cột này đã bị tắt nên phải cung cấp tường minh; lùi về năm 1000 để không đụng dữ liệu mẫu)
+INSERT INTO billing_log (subscription_id, invoice_no, amount, payment_date, payment_method, payment_status, billing_period_start)
 SELECT
     1 + (g % 30),
     'PERF-INV-' || LPAD(g::TEXT, 7, '0'),
     100000 + (g % 50) * 10000,
     DATE '2024-01-01' + (g % 1095),
     (ARRAY['Cash', 'Credit_Card', 'Banking', 'E_Wallet'])[1 + g % 4],
-    CASE WHEN g % 20 = 0 THEN 'Refunded' ELSE 'Completed' END
+    CASE WHEN g % 20 = 0 THEN 'Refunded' ELSE 'Completed' END,
+    DATE '1000-01-01' + g
 FROM
     generate_series(1, 200000) AS g;
 
 -- 120.000 ca PT: mỗi HLV (ID 5..10) ghép cố định với một hợp đồng PT còn buổi,
--- mỗi ca 1 giờ nối tiếp nhau từ năm 2031 => không vi phạm ràng buộc chống trùng lịch.
+-- mỗi ca 1 giờ nối tiếp nhau từ năm 2031 => không vi phạm ràng buộc EXCLUDE chống trùng lịch.
+-- (trigger BR-18 kiểm tra hợp đồng còn hiệu lực/còn buổi bị tắt vì ca PT ở tương lai xa)
 INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
 SELECT
     pair.member_user_id,
@@ -73,6 +89,10 @@ FROM
         AS pair (trainer_user_id, member_user_id, subscription_id)
 CROSS JOIN
     generate_series(0, 19999) AS g;
+
+-- Bật lại trigger trước khi đo: từ đây CSDL ở trạng thái bình thường
+ALTER TABLE billing_log ENABLE TRIGGER USER;
+ALTER TABLE pt_booking ENABLE TRIGGER USER;
 
 ANALYZE user_account;
 ANALYZE billing_log;
@@ -180,6 +200,8 @@ SELECT pg_temp.measure('PT-03',
        GROUP BY payment_method$q$);
 
 -- PT-04: Lịch sử thanh toán của 1 hợp đồng (màn hình chi tiết hội viên)
+-- Kỳ vọng: dùng chỉ mục ghép idx_billing_log_subscription_date (subscription_id, payment_date DESC),
+-- vừa lọc theo hợp đồng vừa trả sẵn thứ tự giảm dần nên không cần bước Sort.
 SELECT pg_temp.measure('PT-04',
     'Lịch sử 20 hóa đơn gần nhất của một hợp đồng',
     $q$SELECT invoice_no, amount, payment_date, payment_status
@@ -206,13 +228,14 @@ SELECT pg_temp.measure('PT-06',
        ORDER BY start_time$q$);
 
 -- PT-07: Kiểm tra HLV có rảnh trong khung giờ trước khi đặt lịch (BR-12)
+-- Lưu ý: điều kiện status phải khớp vị từ của chỉ mục từng phần ex_pt_trainer_no_overlap thì bộ tối ưu hóa mới dùng được chỉ mục.
 SELECT pg_temp.measure('PT-07',
     'Kiểm tra trùng lịch HLV bằng toán tử chồng lấn khoảng thời gian (&&)',
     $q$SELECT EXISTS (
            SELECT 1
            FROM pt_booking
            WHERE trainer_user_id = 8
-             AND status <> 'Cancelled'
+             AND status NOT IN ('Cancelled', 'Late_Cancelled')
              AND tsrange(start_time, end_time, '[)')
                  && tsrange(TIMESTAMP '2032-03-15 10:30', TIMESTAMP '2032-03-15 11:30', '[)')
        ) AS is_conflicted$q$);
@@ -252,7 +275,7 @@ SELECT
         SELECT 1
         FROM pt_booking
         WHERE trainer_user_id = 8
-          AND status <> 'Cancelled'
+          AND status NOT IN ('Cancelled', 'Late_Cancelled')
           AND tsrange(start_time, end_time, '[)')
               && tsrange(TIMESTAMP '2032-03-15 10:30', TIMESTAMP '2032-03-15 11:30', '[)')
     ) AS is_conflicted;
