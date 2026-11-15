@@ -140,3 +140,5 @@ Tất cả các truy vấn đều được kiểm thử trên PostgreSQL 16 và 
 3. **Lập Lịch Thông Minh:** Đặt ca tập PT 1-1 và xếp lịch lớp nhóm có kiểm tra số buổi và sức chứa phòng.
 4. **Complex Queries Playground:** Chọn và thực thi từng câu truy vấn trong số 10 câu nâng cao, hiển thị mã SQL, bảng dữ liệu và biểu đồ Plotly tương tác.
 5. **Trigger Test Bench:** Môi trường thử nghiệm trực quan tương tác cho phép giảng viên/hội đồng kiểm tra trực tiếp phản ứng tự vệ của CSDL khi kích hoạt các Triggers.
+
+ 
