@@ -56,15 +56,19 @@ docker compose down -v
 Thư mục `Phase 3/` được mount chỉ-đọc vào `/sql/` trong container CSDL (các script này **không** chạy tự động lúc khởi tạo). Chạy thủ công khi hệ thống đang hoạt động:
 
 ```bash
-# 05 - Kiểm thử ràng buộc & trigger (105 test case)
+# 05 - Kiểm thử ràng buộc & trigger (109 test case)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/05_constraint_test_cases.sql
 
 # 06 - Kiểm thử hiệu năng (mất khoảng 1 phút)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/06_performance_test_cases.sql
 
-# 09 - Kiểm thử phân quyền RBAC (48 test case)
+# 09 - Kiểm thử phân quyền RBAC (61 test case)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/09_rbac_test_cases.sql
 ```
+
+> **Nạp lại CSDL đã có (BR-10):** Bản nạp lại (01 `DROP` `billing_log`, 04 `DROP`/`CREATE` trigger và hàm bất biến) bị event trigger BR-10 chặn, kể cả với superuser. Cách đơn giản nhất là tạo CSDL mới (`docker compose down -v` rồi `docker compose up --build`). Nếu muốn nạp lại tại chỗ, superuser đặt lối thoát trong cùng phiên `psql` (`SET app.allow_billing_maintenance = 'on';` trước khi `\i` các tập tin) hoặc tắt event trigger bằng hai lệnh riêng `ALTER EVENT TRIGGER evt_protect_billing_log DISABLE;` và `ALTER EVENT TRIGGER evt_protect_billing_log_drop DISABLE;`, sau đó nạp lại 08 để tạo lại chúng.
+
+> **Lưu ý BR-23:** mọi thao tác ghi vào 5 bảng giao dịch phải có người thực hiện. Khi chạy SQL thủ công, hãy đặt trước `SET app.current_user_id = '<user_id>';` (ví dụ `'3'` là lễ tân mẫu), nếu không CSDL sẽ từ chối (lỗi `BR-23`). Các script test tự đặt biến này ở đầu tập tin; ứng dụng đặt trong từng giao dịch; service `scheduler` lấy người thực hiện từ biến môi trường `SCHEDULER_ACTOR_USER_ID` (mặc định `3`, qua `PGOPTIONS`).
 
 Script `08_rbac_security.sql` tạo sẵn các tài khoản đăng nhập demo (mật khẩu chung: `demo_2026`):
 
@@ -175,9 +179,9 @@ Tất cả các truy vấn đều được kiểm thử trên PostgreSQL 16 và 
 - **`trg_start_equipment_maintenance_insert/_update` và `trg_finish_equipment_maintenance` (BR-19):** `AFTER` trên `maintenance_log`: mở ca bảo trì `In_Progress` thì thiết bị tự chuyển `Under_Maintenance` (bị chặn nếu còn giữ chỗ tương lai); ca `Completed`/`Cancelled` và không còn ca đang sửa nào khác thì thiết bị tự về `Operational` (trừ `Decommissioned`). Nhờ đó trạng thái thiết bị luôn khớp nhật ký bảo trì.
 - **`trg_prevent_equipment_reservation_under_maintenance` (BR-19, BR-21):** chặn giữ chỗ Máy tập đang `Under_Maintenance`; **`trg_check_reservation_window` (BR-21)** kiểm tra khung giờ giữ chỗ máy.
 - **`trg_require_payment_before_active` / `trg_activate_on_payment_insert` / `_update` (BR-07):** hợp đồng chỉ được `Active` khi có hóa đơn `Completed`; ghi hóa đơn `Completed` sẽ tự chuyển hợp đồng `Pending` → `Active` (và xử lý gia hạn BR-24). Mỗi hội viên chỉ có 1 hợp đồng `Active` (BR-05, ràng buộc `uq_member_one_active_subscription`).
-- **`trg_fill_billing_period_start` (BR-08)** và **`trg_billing_immutable_update/_delete/_truncate` (BR-10):** chu kỳ tính phí duy nhất cho mỗi hóa đơn; `billing_log` là sổ cái bất biến (cấm sửa/xóa/TRUNCATE).
+- **`trg_fill_billing_period_start` (BR-08)** và **`trg_billing_immutable_update/_delete/_truncate` (BR-10):** chu kỳ tính phí duy nhất cho mỗi hóa đơn; `billing_log` là sổ cái bất biến (cấm sửa/xóa/TRUNCATE). BR-10 có bốn lớp: trigger bất biến; chỉ cấp `SELECT, INSERT` (kể cả Admin); mọi đối tượng thuộc role `NOLOGIN` `gym_owner` (không tài khoản đăng nhập nào là chủ sở hữu); event trigger `evt_protect_billing_log`/`evt_protect_billing_log_drop` chặn `ALTER`/`DROP` `billing_log`, trigger và hàm bất biến, kể cả với superuser. Superuser vẫn bảo trì có chủ đích được bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'` (nạp lại `01`/`04` trên CSDL đã có event trigger cũng cần lối thoát này, xem mục chạy script bên dưới).
 - **`trg_check_class_schedule_conflicts`, `trg_check_pt_booking_conflicts`, `trg_check_class_enrollment_conflicts` (BR-12, BR-15, BR-16):** chặn trùng lịch giữa lớp nhóm, ca PT và đăng ký lớp của cùng HLV/hội viên (bổ trợ cho các `EXCLUDE` constraint trong DDL).
-- **`trg_fill_created_by` (BR-23):** `BEFORE INSERT` trên 5 bảng giao dịch (`member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`): điền `created_by_user_id` từ biến phiên `app.current_user_id` (ứng dụng đặt bằng `SET LOCAL` trong từng giao dịch).
+- **`trg_fill_created_by` / `trg_set_updated_by` (BR-23):** trên 5 bảng giao dịch (`member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`): `BEFORE INSERT` điền `created_by_user_id` (`NOT NULL`) từ biến phiên `app.current_user_id` và **từ chối** nếu biến chưa đặt; `BEFORE UPDATE` luôn ghi `updated_by_user_id`/`updated_at` và cấm đổi `created_by_user_id`. Ứng dụng đặt biến bằng `SET LOCAL` trong từng giao dịch.
 
 ### 3. Thủ tục gia hạn tự động (BR-24)
 PostgreSQL không có bộ lập lịch tích hợp nên quy tắc theo thời gian được cài thành thủ tục `sp_process_subscription_renewals(p_as_of, p_grace_days)` (idempotent): hợp đồng không tự gia hạn quá hạn → `Expired`; hợp đồng tự gia hạn quá hạn → phát hành hóa đơn `Pending` cho chu kỳ kế tiếp; quá thời gian ân hạn (mặc định 3 ngày) mà chưa thanh toán → `Suspended`. Khi hóa đơn được thanh toán, trigger BR-07 gia hạn `end_time` và kích hoạt lại hợp đồng. Chạy hằng ngày bằng cron (hoặc `pg_cron`):

@@ -79,9 +79,9 @@ Gạch chân/(PK) là khóa; (D) là thuộc tính dẫn xuất.
 | PERFORMS | STAFF – MAINTENANCE_LOG | 1:N | MAINTENANCE_LOG toàn phần | BR-20 |
 | RESERVED_FOR | EQUIPMENT – EQUIPMENT_RESERVATION | 1:N | RESERVATION toàn phần | BR-21 (`ex_reservation_equipment_no_overlap`) |
 | FOR_BOOKING / FOR_CLASS | PT_BOOKING (hoặc CLASS_SCHEDULE) – EQUIPMENT_RESERVATION | 1:N, **loại trừ XOR** | riêng phần | BR-21, `chk_reservation_source` |
-| CREATED_BY | USER_ACCOUNT – {MEMBER_SUBSCRIPTION, BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG} | 1:N | riêng phần (cột `created_by_user_id` cho phép NULL) | BR-23 |
+| CREATED_BY / UPDATED_BY | USER_ACCOUNT – {MEMBER_SUBSCRIPTION, BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG} | 1:N (mỗi quan hệ 2 khóa ngoại) | CREATED_BY toàn phần (`created_by_user_id` NOT NULL); UPDATED_BY riêng phần (`updated_by_user_id` cho phép NULL, kèm `updated_at`) | BR-23 |
 
-Quan hệ CREATED_BY (5 quan hệ cùng mẫu) không vẽ thành đường trên sơ đồ EER để tránh rối; chúng được ghi trong hộp chú thích màu tím cạnh USER_ACCOUNT và thể hiện đầy đủ ở sơ đồ vật lý (5 khóa ngoại `fk_*_created_by`).
+Quan hệ CREATED_BY/UPDATED_BY (5 cặp quan hệ cùng mẫu) không vẽ thành đường trên sơ đồ EER để tránh rối; chúng được ghi trong hộp chú thích màu tím cạnh USER_ACCOUNT và thể hiện đầy đủ ở sơ đồ vật lý (10 khóa ngoại `fk_*_created_by` và `fk_*_updated_by`).
 
 ### Cung loại trừ (Exclusive arc) của EQUIPMENT_RESERVATION
 Mỗi lượt giữ chỗ thiết bị thuộc về **đúng một** nguồn: hoặc một ca `PT_BOOKING` hoặc một `CLASS_SCHEDULE`, không bao giờ cả hai và không bao giờ không có nguồn nào. Mô hình hóa bằng hai khóa ngoại cùng nullable `booking_id`, `class_id` cùng ràng buộc `chk_reservation_source` (XOR). Trên sơ đồ, hai quan hệ FOR_BOOKING và FOR_CLASS nối vào vòng tròn XOR rồi vào EQUIPMENT_RESERVATION.

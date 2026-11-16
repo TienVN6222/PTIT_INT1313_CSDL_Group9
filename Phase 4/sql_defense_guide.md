@@ -22,6 +22,8 @@ docker compose up --build            # CSDL + dữ liệu mẫu + views/triggers
 docker exec -it fitzone_postgres_db psql -U gym_admin -d gym_management
 ```
 
+**Bắt buộc đặt người thực hiện (BR-23).** Mọi câu `INSERT`/`UPDATE` vào 5 bảng giao dịch (`member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`) đều bị CSDL từ chối nếu phiên chưa có `app.current_user_id`. Vì vậy các khối mã ghi dữ liệu trong tài liệu này mở đầu bằng `SET app.current_user_id = '3';` (3 là lễ tân mẫu); khi tự gõ trong `psql` hãy làm tương tự.
+
 **Mẹo trả lời khi bị hỏi "sửa tại chỗ"**
 
 1. Đọc lại yêu cầu bằng lời của mình, nói rõ *bảng nào – điều kiện nào – nhóm theo gì*.
@@ -1169,14 +1171,14 @@ ORDER BY
 | BR-05 | Mỗi hội viên tối đa 1 hợp đồng `Active` | Chỉ mục duy nhất một phần | `uq_member_one_active_subscription` |
 | BR-07 | Chỉ `Active` khi đã có hóa đơn `Completed` | Trigger | `trg_require_payment_before_active`, `trg_activate_on_payment_*` |
 | BR-08 | Mỗi chu kỳ chỉ 1 hóa đơn còn hiệu lực | Chỉ mục duy nhất một phần | `uq_billing_subscription_period` |
-| BR-10 | Hóa đơn bất biến | Trigger + GRANT | `trg_billing_immutable_*` |
+| BR-10 | Hóa đơn bất biến | Trigger + GRANT + chủ sở hữu `gym_owner` + event trigger | `trg_billing_immutable_*`, `gym_owner`, `evt_protect_billing_log`, `evt_protect_billing_log_drop` |
 | BR-12, BR-15 | HLV / phòng không trùng lịch | `EXCLUDE` + trigger | `ex_class_trainer_no_overlap`, `ex_class_room_no_overlap`, `ex_pt_trainer_no_overlap`, `trg_check_*_conflicts` |
 | BR-14 | Không vượt sức chứa lớp | `CHECK` + trigger đồng bộ | `chk_class_enrollment_limit`, `trg_sync_class_enrollment_count` |
 | BR-16 | Hội viên không trùng lịch | `EXCLUDE` + trigger | `ex_pt_member_no_overlap`, `trg_check_pt_booking_conflicts`, `trg_check_class_enrollment_conflicts` |
 | BR-18 | Trừ buổi PT / chỉ đặt khi còn buổi | Trigger | `trg_check_pt_booking_creation`, `trg_update_remaining_pt_sessions` |
 | BR-19 | Chặn lịch vào phòng/máy đang bảo trì, chặn chuyển sang bảo trì khi còn lịch tương lai, đồng bộ trạng thái máy theo phiếu bảo trì | Trigger | `trg_prevent_class_in_maintenance_room`, `trg_prevent_equipment_reservation_under_maintenance`, `trg_prevent_room_maintenance_with_future_classes`, `trg_prevent_equipment_maintenance_with_future_reservations`, `trg_start_equipment_maintenance_*`, `trg_finish_equipment_maintenance` |
 | BR-21 | Không giữ trùng máy, không giữ máy đang bảo trì | `EXCLUDE` + trigger | `ex_reservation_equipment_no_overlap`, `trg_check_reservation_window` |
-| BR-23 | Lưu vết người thực hiện | Trigger | `trg_fill_created_by` (5 bảng) |
+| BR-23 | Lưu vết người thực hiện (tạo và sửa) | `NOT NULL` + FK + trigger | `trg_fill_created_by`, `trg_set_updated_by` (5 bảng), `fk_*_created_by`, `fk_*_updated_by` |
 | BR-24 | Tự gia hạn / ân hạn | Thủ tục (container `scheduler` trong demo, `pg_cron`/cron trong production) + trigger | `sp_process_subscription_renewals`, `trg_activate_on_payment_*` |
 | BR-25 | Hủy muộn < 24 h vẫn trừ buổi | Trigger | `trg_late_cancel_pt_booking` |
 
@@ -1219,6 +1221,7 @@ SELECT user_id FROM user_account WHERE email = 'be.p4@example.com';
 
 ```sql
 -- LỖI MONG ĐỢI: 23514
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 INSERT INTO class_schedule (trainer_user_id, room_id, class_name, start_time, end_time, max_capacity)
 VALUES (5, (SELECT MIN(room_id) FROM facilities_room WHERE status = 'Active'), 'Lop thu P4',
         CURRENT_DATE + INTERVAL '12 days 21 hours', CURRENT_DATE + INTERVAL '12 days 22 hours', 1);
@@ -1253,6 +1256,7 @@ VALUES (1, (SELECT MAX(class_id) FROM class_schedule));
 **SECURITY DEFINER:** HLV (role `gym_role_trainer`) chỉ có quyền `UPDATE (status)` trên `pt_booking`, **không** có quyền ghi `member_subscription`; trigger phải chạy bằng quyền chủ sở hữu hàm mới trừ được buổi (xem B.4).
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Đặt ca PT 3 ngày tới (khung 21:00 luôn trống) rồi hoàn thành: remaining_sessions giảm đúng 1.
 INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
 VALUES (18, 5, 8, (CURRENT_DATE + 3), CURRENT_DATE + INTERVAL '3 days 21 hours', CURRENT_DATE + INTERVAL '3 days 22 hours', 'Scheduled');
@@ -1278,6 +1282,7 @@ SELECT remaining_sessions AS after_complete FROM member_subscription WHERE subsc
 **Vì sao `BEFORE`?** Chỉ `BEFORE` trigger mới được **sửa `NEW`** trước khi dòng được ghi. Ứng dụng chỉ cần `UPDATE … SET status='Cancelled'`, không cần tự tính 24 giờ → quy tắc nằm tập trung ở CSDL.
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Hủy sớm (> 24 h): giữ nguyên 'Cancelled', không trừ buổi.
 INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
 VALUES (18, 5, 8, (CURRENT_DATE + 3), CURRENT_DATE + INTERVAL '3 days 21 hours', CURRENT_DATE + INTERVAL '3 days 22 hours', 'Scheduled');
@@ -1288,6 +1293,7 @@ RETURNING booking_id, status;
 ```
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Hủy muộn (< 24 h): trigger đổi thành 'Late_Cancelled' và trừ 1 buổi.
 WITH slot AS (
     SELECT CASE WHEN LOCALTIMESTAMP < CURRENT_DATE + INTERVAL '21 hours'
@@ -1327,6 +1333,7 @@ Trigger này bổ sung cho trigger trừ buổi: một cái *chặn đặt thừ
 Luồng đúng: tạo hợp đồng `Pending` → ghi hóa đơn `Completed` → trigger tự đưa hợp đồng sang `Active`. Mệnh đề `WHEN` trong định nghĩa trigger giúp PostgreSQL **không gọi hàm** khi điều kiện sai (tiết kiệm). Nếu hội viên đang có hợp đồng `Active` khác, bước tự chuyển sang `Active` vi phạm `uq_member_one_active_subscription` (BR-05) và **toàn bộ lệnh ghi hóa đơn bị hủy**.
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Luồng đúng: Pending -> (hóa đơn Completed) -> tự động Active.
 INSERT INTO user_account (full_name, email, phone, dob, password_hash)
 VALUES ('Hoi Vien Demo P4', 'demo.p4@example.com', '0999000001', DATE '2000-01-01', 'x');
@@ -1376,7 +1383,7 @@ FROM user_account WHERE email = 'demo.p4@example.com';
 | `trg_billing_immutable_delete` | `BEFORE DELETE` (row) | Luôn chặn. Muốn hoàn tiền thì chuyển sang `Refunded`. |
 | `trg_billing_immutable_truncate` | `BEFORE TRUNCATE` (**statement**) | Luôn chặn. `TRUNCATE` không gọi trigger row nên cần trigger mức câu lệnh riêng. |
 
-**Vì sao dùng trigger mà không chỉ `REVOKE UPDATE, DELETE`?** `REVOKE` không có hiệu lực với **chủ sở hữu bảng và superuser**; trigger thì áp dụng cho tất cả. Nhóm dùng **hai lớp (defense in depth)**: trigger bảo vệ ở mọi tài khoản, và `GRANT` chỉ cho role ứng dụng `SELECT, INSERT` trên `billing_log` (xem Phần D). Muốn sửa hóa đơn bắt buộc phải `ALTER TABLE … DISABLE TRIGGER` – một thao tác DDL có chủ đích để lại dấu vết.
+**Vì sao dùng nhiều lớp mà không chỉ `REVOKE UPDATE, DELETE`?** `REVOKE` không có hiệu lực với **chủ sở hữu bảng và superuser**; trigger áp dụng cho tất cả nhưng chủ sở hữu vẫn có thể `ALTER TABLE … DISABLE TRIGGER`. Vì vậy BR-10 được bảo vệ **bốn lớp (defense in depth)**: (1) trigger bất biến; (2) `GRANT` chỉ cho role ứng dụng `SELECT, INSERT` trên `billing_log` (Phần D); (3) mọi đối tượng thuộc role `NOLOGIN` `gym_owner`, không tài khoản đăng nhập nào là chủ sở hữu hay thành viên của nó nên không ai `ALTER`/`DROP` được; (4) event trigger `evt_protect_billing_log` (`ddl_command_end`) và `evt_protect_billing_log_drop` (`sql_drop`) chặn `ALTER TABLE`, `DROP TABLE`, `DROP`/`ALTER TRIGGER` trên `billing_log` và việc sửa/xóa các hàm trigger bất biến, **kể cả với superuser** (lỗi `P0001`, thông báo chứa `BR-10`). Superuser là gốc tin cậy của mọi DBMS nên vẫn bảo trì có chủ đích được bằng `ALTER EVENT TRIGGER … DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`; thao tác phải tường minh. (Hệ quả: chạy lại `04_triggers_views.sql` trên CSDL đã có event trigger cần lối thoát này.)
 
 ```sql
 -- LỖI MONG ĐỢI: P0001
@@ -1397,6 +1404,7 @@ TRUNCATE TABLE billing_log;
 ```
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Được phép duy nhất: Completed -> Refunded (không đổi cột nào khác).
 UPDATE billing_log
 SET payment_status = 'Refunded'
@@ -1404,13 +1412,51 @@ WHERE billing_id = (SELECT MIN(billing_id) FROM billing_log WHERE payment_status
 RETURNING billing_id, invoice_no, payment_status;
 ```
 
+Lớp (4) – event trigger chặn cả superuser:
+
+```sql
+-- LỖI MONG ĐỢI: P0001
+ALTER TABLE billing_log DISABLE TRIGGER USER;
+```
+
+```sql
+-- LỖI MONG ĐỢI: P0001
+DROP TRIGGER trg_billing_immutable_delete ON billing_log;
+```
+
+```sql
+-- Lối thoát bảo trì có chủ đích của superuser (chỉ hiệu lực trong giao dịch này).
+SET LOCAL app.allow_billing_maintenance = 'on';
+ALTER TABLE billing_log DISABLE TRIGGER USER;
+ALTER TABLE billing_log ENABLE TRIGGER USER;
+```
+
+Lớp (3) – quyền sở hữu và lớp (4) đang bật:
+
+```sql
+SELECT c.relname, c.relowner::REGROLE AS owner
+FROM pg_class AS c
+WHERE c.relname = 'billing_log';
+
+SELECT evtname, evtevent, evtenabled
+FROM pg_event_trigger
+ORDER BY evtname;
+```
+
 ### B.2.6. `trg_fill_billing_period_start` – BR-08 (chu kỳ tính phí)
 
 `BEFORE INSERT` trên `billing_log`: nếu câu `INSERT` không nêu `billing_period_start` thì điền bằng ngày bắt đầu hợp đồng. Nhờ đó câu `INSERT` cũ của ứng dụng vẫn chạy. Chống trùng chu kỳ do **chỉ mục duy nhất một phần** `uq_billing_subscription_period (subscription_id, billing_period_start) WHERE payment_status IN ('Pending','Completed')` – hóa đơn `Failed`/`Refunded` không chiếm chu kỳ nên được phát hành lại.
 
-### B.2.7. `trg_fill_created_by` – BR-23 (vết người thực hiện)
+### B.2.7. `trg_fill_created_by` và `trg_set_updated_by` – BR-23 (vết người tạo và người sửa)
 
-`BEFORE INSERT` trên 5 bảng giao dịch (`member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`). Nếu `created_by_user_id` còn `NULL`, điền từ biến phiên `app.current_user_id` (`current_setting('app.current_user_id', TRUE)` – tham số `TRUE` = "không báo lỗi nếu biến chưa đặt"). Ứng dụng chạy `SET app.current_user_id = '<id>'` (hoặc `SET LOCAL` trong giao dịch) ngay sau khi đăng nhập. Cột cho phép `NULL` để dữ liệu cũ và tác vụ hệ thống (cron) vẫn hợp lệ.
+Trên 5 bảng giao dịch (`member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`) có ba cột: `created_by_user_id INT NOT NULL`, `updated_by_user_id INT NULL`, `updated_at TIMESTAMP NULL`; hai cột người dùng đều có khóa ngoại tới `user_account` (`fk_*_created_by`, `fk_*_updated_by`).
+
+| Trigger | Sự kiện | Luật |
+|---|---|---|
+| `trg_fill_created_by` | `BEFORE INSERT` | Nếu `created_by_user_id` còn `NULL`, điền từ `current_setting('app.current_user_id', TRUE)` (tham số `TRUE` = "không báo lỗi nếu biến chưa đặt"). Vẫn không xác định được người thực hiện thì **`RAISE EXCEPTION` (`P0001`, `BR-23`)**; kết hợp `NOT NULL` nên không còn dòng nào thiếu người tạo. |
+| `trg_set_updated_by` | `BEFORE UPDATE` | Luôn ghi `updated_by_user_id` và `updated_at` từ phiên (không tin giá trị do câu lệnh truyền vào); **cấm đổi `created_by_user_id`**; từ chối nếu chưa đặt biến phiên. |
+
+Mọi chương trình ghi dữ liệu phải đặt biến phiên: ứng dụng dùng `SET LOCAL` trong từng giao dịch (`db_tx`), service `scheduler` đặt qua `PGOPTIONS` (`SCHEDULER_ACTOR_USER_ID`, mặc định 3), script test đặt ở đầu tập tin. Vì vậy gọi `sp_process_subscription_renewals()` hoặc chạy DML thủ công mà không đặt biến sẽ lỗi **theo thiết kế**.
 
 ```sql
 SET LOCAL app.current_user_id = '3';
@@ -1418,10 +1464,39 @@ SET LOCAL app.current_user_id = '3';
 INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
 VALUES (18, 5, 8, (CURRENT_DATE + 3), CURRENT_DATE + INTERVAL '3 days 21 hours', CURRENT_DATE + INTERVAL '3 days 22 hours', 'Scheduled');
 
-SELECT booking_id, created_by_user_id
+SELECT booking_id, created_by_user_id, updated_by_user_id
 FROM pt_booking
 WHERE booking_id = (SELECT MAX(booking_id) FROM pt_booking);
 ```
+
+```sql
+-- LỖI MONG ĐỢI: P0001
+RESET app.current_user_id;
+
+INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
+VALUES (18, 5, 8, (CURRENT_DATE + 3), CURRENT_DATE + INTERVAL '3 days 21 hours', CURRENT_DATE + INTERVAL '3 days 22 hours', 'Scheduled');
+```
+
+```sql
+-- UPDATE tự ghi người sửa và thời điểm sửa (người sửa lấy từ phiên, không phải từ câu lệnh).
+SET LOCAL app.current_user_id = '4';
+
+UPDATE member_subscription
+SET is_recurring = is_recurring
+WHERE subscription_id = 8
+RETURNING subscription_id, created_by_user_id, updated_by_user_id, updated_at;
+```
+
+```sql
+-- LỖI MONG ĐỢI: P0001
+SET LOCAL app.current_user_id = '3';
+
+UPDATE member_subscription
+SET created_by_user_id = 4
+WHERE subscription_id = 8;
+```
+
+**Câu hỏi hay gặp:** *"Vì sao `created_by_user_id` là `NOT NULL` nhưng `updated_by_user_id` cho phép `NULL`?"* – Mọi dòng đều có người tạo; còn người sửa chỉ tồn tại sau lần `UPDATE` đầu tiên (dòng chưa bao giờ sửa thì `NULL` là đúng ngữ nghĩa, không phải thiếu dữ liệu).
 
 ### B.2.8. Nhóm chống trùng lịch xuyên bảng – BR-12, BR-15, BR-16: `trg_check_class_schedule_conflicts`, `trg_check_pt_booking_conflicts`, `trg_check_class_enrollment_conflicts`
 
@@ -1441,6 +1516,7 @@ Ràng buộc `EXCLUDE` chỉ so sánh các dòng **trong cùng một bảng**. N
 
 ```sql
 -- LỖI MONG ĐỢI: 23P01
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- HLV 5 đang đứng lớp 21:00-22:00 thì không thể nhận ca PT 21:30-22:30.
 INSERT INTO class_schedule (trainer_user_id, room_id, class_name, start_time, end_time, max_capacity)
 VALUES (5, (SELECT MIN(room_id) FROM facilities_room WHERE status = 'Active'), 'Lop thu P4',
@@ -1499,6 +1575,7 @@ WHERE equipment_id = (SELECT equipment_id
 ```
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Hợp lệ: mở phiếu bảo trì In_Progress cho thiết bị chưa có giữ chỗ tương lai
 -- => thiết bị tự chuyển Under_Maintenance; hoàn tất phiếu => tự về Operational.
 WITH target AS (
@@ -1535,6 +1612,7 @@ WHERE ml.issue_description = 'Thay day curoa (demo bao ve)';
 
 ```sql
 -- LỖI MONG ĐỢI: 23P01
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Thiết bị 3 đang bảo trì (phiếu In_Progress): không thể giữ chỗ cho lớp tương lai.
 INSERT INTO class_schedule (trainer_user_id, room_id, class_name, start_time, end_time, max_capacity)
 VALUES (5, (SELECT MIN(room_id) FROM facilities_room WHERE status = 'Active'), 'Lop thu P4',
@@ -1559,6 +1637,7 @@ PostgreSQL **không có bộ lập lịch tích hợp**, nên quy tắc theo th�
 Khi hóa đơn gia hạn được thanh toán, `trg_activate_on_payment_*` gia hạn `end_time`, đặt lại buổi PT và kích hoạt lại hợp đồng. Thủ tục **idempotent** (gọi lại nhiều lần cùng ngày không phát sinh thêm: bước 2 có `NOT EXISTS`, bước 1 và 3 chỉ chọn hợp đồng còn `Active`). **Vì sao `PROCEDURE` mà không `FUNCTION`?** Gọi bằng `CALL`, có thể quản lý giao dịch và không cần trả về giá trị.
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Giả lập "400 ngày sau": hợp đồng quá hạn bị Expired/Suspended, hóa đơn gia hạn Pending được phát hành.
 CALL sp_process_subscription_renewals(CURRENT_DATE + 400, 3);
 
@@ -1656,6 +1735,7 @@ ORDER BY conrelid::regclass::TEXT, conname;
 
 ```sql
 -- LỖI MONG ĐỢI: 23P01
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Một HLV dạy hai lớp trùng giờ ở hai phòng khác nhau: vi phạm ex_class_trainer_no_overlap.
 INSERT INTO class_schedule (trainer_user_id, room_id, class_name, start_time, end_time, max_capacity)
 VALUES (5, (SELECT room_id FROM facilities_room WHERE status = 'Active' ORDER BY room_id LIMIT 1),
@@ -1684,6 +1764,8 @@ VALUES (5, (SELECT room_id FROM facilities_room WHERE status = 'Active' ORDER BY
 3. **5 role nhóm `NOLOGIN`** (`gym_role_admin`, `gym_role_receptionist`, `gym_role_trainer`, `gym_role_technician`, `gym_role_member`) gom quyền; **5 tài khoản đăng nhập mẫu `gym_u_*`** (`LOGIN INHERIT`, mật khẩu `demo_2026`) thừa hưởng từ role nhóm tương ứng. Tách *role nhóm* khỏi *tài khoản* để thêm người mới chỉ cần `GRANT gym_role_trainer TO <người>`, không lặp lại danh sách quyền.
 4. **Quyền mức cột** cho dữ liệu nhạy cảm: `password_hash` không ai được `SELECT` (Admin vẫn `INSERT/UPDATE` để đặt mật khẩu); lễ tân chỉ `UPDATE` các cột không gồm `password_hash`; HLV chỉ `SELECT (user_id, full_name, phone, emergency_contact)` của `user_account` và chỉ `UPDATE (status)` trên `pt_booking`/`class_enrollment`.
 5. **BR-10 ở tầng quyền:** `billing_log` chỉ cấp `SELECT, INSERT` cho mọi role, **kể cả Admin** (`REVOKE UPDATE, DELETE ON billing_log FROM gym_role_admin`). Không role nào có `TRUNCATE` (sẽ vượt mọi giới hạn `DELETE`).
+   **BR-10 ở tầng sở hữu:** mọi bảng, view, sequence, hàm, thủ tục thuộc role `NOLOGIN` `gym_owner` (không phải superuser, không là thành viên của role nào, và không `gym_u_*`/`gym_role_*` nào là thành viên của nó). Vì chủ sở hữu mới có quyền `ALTER`/`DROP` bảng, không tài khoản đăng nhập nào còn làm được điều đó (lỗi `42501`).
+   **BR-10 ở tầng event trigger:** `evt_protect_billing_log` / `evt_protect_billing_log_drop` chặn cả superuser (xem B.2.5); lối thoát tường minh là `SET LOCAL app.allow_billing_maintenance = 'on'` hoặc `ALTER EVENT TRIGGER … DISABLE`.
 6. **View chạy với quyền chủ sở hữu**, nên role được `SELECT` view không cần quyền trên bảng gốc.
 7. **`SECURITY DEFINER` cho hàm trigger** (xem D.3).
 
@@ -1762,6 +1844,7 @@ ORDER BY proname;
 ```
 
 ```sql
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- HLV hoàn thành ca PT: được phép nhờ trigger SECURITY DEFINER, dù không có quyền ghi member_subscription.
 INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
 VALUES (18, 5, 8, (CURRENT_DATE + 3), CURRENT_DATE + INTERVAL '3 days 21 hours', CURRENT_DATE + INTERVAL '3 days 22 hours', 'Scheduled');
@@ -1779,6 +1862,7 @@ SELECT remaining_sessions FROM member_subscription WHERE subscription_id = 8;
 
 ```sql
 -- LỖI MONG ĐỢI: 42501
+SET app.current_user_id = '3';  -- BR-23: người thực hiện (lễ tân mẫu)
 -- Đối chứng: bỏ SECURITY DEFINER thì thao tác hợp lệ của HLV bị từ chối.
 INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
 VALUES (18, 5, 8, (CURRENT_DATE + 3), CURRENT_DATE + INTERVAL '3 days 21 hours', CURRENT_DATE + INTERVAL '3 days 22 hours', 'Scheduled');
@@ -1979,7 +2063,7 @@ ORDER BY
 
 ### Câu 8 – (Lý thuyết) Vì sao nhóm vừa `REVOKE UPDATE, DELETE` vừa dùng trigger để bảo vệ `billing_log`? Chỉ một lớp có đủ không?
 
-**Đáp án.** Không đủ. `GRANT/REVOKE` **không ràng buộc chủ sở hữu bảng và superuser**, nên chủ sở hữu vẫn sửa/xóa được; trigger thì chặn mọi tài khoản (kể cả superuser, trừ khi cố ý `DISABLE TRIGGER`). Ngược lại, chỉ có trigger thì role ứng dụng vẫn nhìn thấy lệnh `UPDATE`/`DELETE` và chỉ bị từ chối muộn; `REVOKE` từ chối sớm ở tầng quyền (`42501`). Dùng cả hai là **phòng thủ nhiều lớp (defense in depth)**. Trigger còn cho phép logic tinh vi mà `GRANT` không làm được: cho phép đúng một chuyển đổi `Completed → Refunded` và cấm mọi thay đổi khác.
+**Đáp án.** Không đủ, nên nhóm dùng **bốn lớp**. `GRANT/REVOKE` **không ràng buộc chủ sở hữu bảng và superuser**; trigger chặn mọi tài khoản nhưng chủ sở hữu vẫn có thể `DISABLE TRIGGER`. Do đó nhóm chuyển quyền sở hữu mọi đối tượng cho role `NOLOGIN` `gym_owner` (không ai đăng nhập được bằng role này) và thêm **event trigger** `evt_protect_billing_log` chặn `ALTER`/`DROP` `billing_log`, trigger và hàm bất biến, kể cả với superuser. Chỉ có trigger thì role ứng dụng vẫn thấy lệnh `UPDATE`/`DELETE` và bị từ chối muộn; `REVOKE` từ chối sớm ở tầng quyền (`42501`). Trigger còn cho phép logic tinh vi mà `GRANT` không làm được: cho phép đúng một chuyển đổi `Completed → Refunded`. **Giới hạn cố hữu:** superuser là gốc tin cậy của mọi DBMS và vẫn bảo trì được có chủ đích bằng `ALTER EVENT TRIGGER … DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`; thao tác này tường minh, không xảy ra vô tình.
 
 ### Câu 9 – Thiết bị nào **chưa từng** có phiếu bảo trì?
 
@@ -2100,3 +2184,6 @@ WHERE ms.sub_status = 'Active'
 4. **Truy vấn 7:** "chưa từng đặt lịch" tính cả ca đã hủy là đã đặt (xem biến thể 7b).
 5. **`pt_booking` không đạt 3NF** do phi chuẩn hóa có kiểm soát (xem E.1).
 6. **Mật khẩu tài khoản demo `demo_2026`** chỉ dùng trình diễn, phải đổi khi triển khai thật.
+7. **Superuser là gốc tin cậy:** BR-10 chặn được cả superuser ở mức thông thường, nhưng superuser vẫn tắt được event trigger một cách tường minh; đây là giới hạn cố hữu của mọi DBMS, không phải lỗ hổng thiết kế.
+8. **BR-22:** bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` được duy trì thủ công song song, không tự đồng bộ.
+9. **BR-23:** mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`; thiếu thì CSDL từ chối (theo thiết kế).

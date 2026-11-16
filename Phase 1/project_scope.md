@@ -123,7 +123,7 @@ Các quy tắc dưới đây đã được triển khai trong DDL, trigger và t
 - **Lịch sử dữ liệu:** Không xóa hoặc sửa dữ liệu theo cách làm mất liên kết với các giao dịch đã phát sinh, trừ khi quy tắc lưu trữ cho phép.
 - **Phân quyền:** Người dùng chỉ được thực hiện các thao tác phù hợp với vai trò và quyền đã cấp.
 
-Các quy tắc được thực thi bằng `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `NOT NULL`, `EXCLUDE`, chỉ mục duy nhất từng phần, trigger và thủ tục. Hai quy tắc chỉ thực thi một phần (BR-10, BR-23) được nêu rõ giới hạn trong `business_rules.md`.
+Các quy tắc được thực thi bằng `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `NOT NULL`, `EXCLUDE`, chỉ mục duy nhất từng phần, trigger và thủ tục. Tất cả quy tắc BR-01…BR-26 đều được thực thi ở CSDL (BR-10 bốn lớp bảo vệ, BR-23 bắt buộc người thực hiện cho cả `INSERT` lẫn `UPDATE`); lưu ý còn lại là superuser vốn là gốc tin cậy của mọi DBMS và BR-24 cần bộ lập lịch ngoài, xem `business_rules.md`.
 
 ## 1.5. Ngoài phạm vi dự án
 

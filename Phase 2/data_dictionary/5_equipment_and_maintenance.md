@@ -53,6 +53,8 @@ Quản lý thiết bị máy tập, theo dõi khấu hao, lịch sử giữ ch�
 | cost | DECIMAL(10,2) | None | No | 0.00 | Chi phí sửa chữa. `chk_maintenance_cost`: `cost >= 0` (BR-20) |
 | status | VARCHAR(20) | None | No | 'In_Progress' | Trạng thái xử lý. `chk_maintenance_status`: `IN ('In_Progress', 'Completed', 'Cancelled')` |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm tạo bản ghi |
-| created_by_user_id | INT | FK | Yes | NULL | Người ghi nhận. `fk_maintenance_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người ghi nhận, bắt buộc (BR-23). `fk_maintenance_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa ca bảo trì lần gần nhất (BR-23). `fk_maintenance_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Chỉ mục:** `idx_maintenance_log_equipment (equipment_id)`.

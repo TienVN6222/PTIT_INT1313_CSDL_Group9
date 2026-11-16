@@ -31,7 +31,9 @@ Quản lý gói dịch vụ phòng tập, hợp đồng đăng ký hội viên v
 | sub_status | VARCHAR(20) | None | No | 'Pending' | Trạng thái hợp đồng. `chk_subscription_status`: `IN ('Pending', 'Active', 'Expired', 'Suspended', 'Cancelled')`. Trigger `trg_require_payment_before_active` chỉ cho 'Active' khi đã có hóa đơn Completed; `trg_activate_on_payment_insert/_update` tự kích hoạt khi thanh toán (BR-07) |
 | is_recurring | BOOLEAN | None | No | FALSE | Cấu hình tự động gia hạn định kỳ; thủ tục `sp_process_subscription_renewals(p_as_of, p_grace_days)` phát hành hóa đơn gia hạn / chuyển Expired / Suspended (BR-24) |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm tạo hợp đồng |
-| created_by_user_id | INT | FK | Yes | NULL | Người thực hiện thao tác tạo. `fk_subscription_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; trigger `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi để NULL (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người thực hiện thao tác tạo hợp đồng, bắt buộc (BR-23). `fk_subscription_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa hợp đồng lần gần nhất (BR-23). `fk_subscription_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 
@@ -53,7 +55,9 @@ Quản lý gói dịch vụ phòng tập, hợp đồng đăng ký hội viên v
 | payment_method | VARCHAR(50) | None | No | None | Phương thức thanh toán. `chk_billing_method`: `IN ('Cash', 'Credit_Card', 'Banking', 'E_Wallet')` |
 | payment_status | VARCHAR(20) | None | No | 'Completed' | Trạng thái hóa đơn. `chk_billing_status`: `IN ('Pending', 'Completed', 'Failed', 'Refunded')`. Bản ghi bất biến: trigger `trg_billing_immutable_update/_delete/_truncate` chặn sửa/xóa/TRUNCATE (BR-10) |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm ghi nhận hóa đơn |
-| created_by_user_id | INT | FK | Yes | NULL | Người lập hóa đơn. `fk_billing_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người lập hóa đơn, bắt buộc (BR-23). `fk_billing_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa hóa đơn lần gần nhất (chỉ Completed→Refunded hoặc Pending→Completed/Failed, BR-10) (BR-23). `fk_billing_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 

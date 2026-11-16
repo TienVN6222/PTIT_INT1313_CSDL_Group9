@@ -27,18 +27,18 @@ EER_FALLBACK = os.path.join(EER_DIR, "1_mermaid-diagram.png")
 
 # ----------------------------------------------------------------------------
 # SỐ LIỆU CÓ THỂ THAY ĐỔI - sửa tại đây rồi chạy lại script
-# (số liệu lấy từ lần chạy kiểm thử cuối trên CSDL mới, ngày 15/11/2026)
+# (số liệu lấy từ lần chạy kiểm thử cuối trên CSDL mới, ngày 16/11/2026)
 # ----------------------------------------------------------------------------
 STATS = {
-    "tc_total": "105/105",        # 05_constraint_test_cases.sql (TC-01..71 âm tính, TP-01..34 dương tính)
-    "rbac_total": "48/48",        # 09_rbac_test_cases.sql
+    "tc_total": "109/109",        # 05_constraint_test_cases.sql (TC-01..74 âm tính, TP-01..35 dương tính)
+    "rbac_total": "61/61",        # 09_rbac_test_cases.sql (gồm EV-01..EV-13)
     "perf_total": "8/8",          # 06_performance_test_cases.sql
     "perf_limit_ms": "200",
     "perf_rows": "100k user, 200k hóa đơn, 120k ca PT",
     "mock_rows": "715",
     "tables": "18",
     "business_rules": "26",
-    "triggers_secdef": "23",
+    "triggers_secdef": "24",
     "bcnf": "17/18",
 }
 PRESENTERS = {
@@ -229,7 +229,7 @@ rows = [
     ["Mã", "Quy tắc", "Cơ chế thực thi"],
     ["BR-05", "Mỗi hội viên tối đa 1 hợp đồng Active", "Chỉ mục duy nhất một phần"],
     ["BR-07", "Chỉ Active khi đã có hóa đơn Completed", "Trigger kích hoạt tự động"],
-    ["BR-10", "Hóa đơn bất biến (không sửa/xóa)", "Trigger + REVOKE"],
+    ["BR-10", "Hóa đơn bất biến (không sửa/xóa)", "Trigger + REVOKE + gym_owner + event trigger"],
     ["BR-12/15/16", "HLV, phòng, hội viên không trùng lịch", "EXCLUDE gist + trigger"],
     ["BR-18", "Chỉ đặt PT khi còn buổi; hoàn thành thì trừ 1", "Trigger"],
     ["BR-19", "Chặn xếp lịch vào phòng/máy bảo trì; không cho bảo trì khi còn lịch tương lai", "Trigger"],
@@ -334,21 +334,21 @@ s = base_slide("Trigger: hóa đơn, kích hoạt, hủy muộn", C, 1)
 rows = [
     ["Cơ chế", "Trigger / thủ tục", "Hành vi"],
     ["BR-10 Hóa đơn bất biến", "trg_billing_immutable_update/delete/truncate",
-     "Cấm xóa, cấm TRUNCATE; Completed chỉ được đổi sang Refunded"],
+     "Cấm xóa, cấm TRUNCATE; Completed chỉ được đổi sang Refunded. Thêm 3 lớp: GRANT, chủ sở hữu gym_owner NOLOGIN, event trigger chặn ALTER/DROP (kể cả superuser)"],
     ["BR-07 Tự kích hoạt", "trg_require_payment_before_active, trg_activate_on_payment_*",
      "Hóa đơn Completed: hợp đồng Pending thành Active"],
     ["BR-25 Hủy muộn", "trg_late_cancel_pt_booking (BEFORE) + trg_update_remaining_pt_sessions (AFTER)",
      "Hủy < 24 giờ: đổi thành Late_Cancelled và trừ 1 buổi"],
     ["BR-24 Gia hạn", "sp_process_subscription_renewals(p_as_of, p_grace_days)",
      "Expired / hóa đơn gia hạn Pending / Suspended; chạy lại không phát sinh thêm"],
-    ["BR-23 Vết thao tác", "trg_fill_created_by", "Ghi created_by_user_id từ app.current_user_id"],
+    ["BR-23 Vết thao tác", "trg_fill_created_by, trg_set_updated_by", "Bắt buộc created_by_user_id (NOT NULL) từ app.current_user_id; UPDATE ghi updated_by_user_id, updated_at"],
 ]
 table(s, Inches(0.5), Inches(1.4), Inches(12.3), rows, [2.6, 5.2, 4.5], size=14, row_h=0.85)
 add_text(s, Inches(0.5), Inches(6.55), Inches(12.3), Inches(0.4),
          ["Thứ tự: BEFORE sửa NEW trước khi ghi; AFTER nhìn thấy trạng thái đã sửa nên trừ buổi đúng"],
          size=14, color=GREY)
 note("Trigger nghiệp vụ", C, 1,
-     "Năm cơ chế tiêu biểu. Hóa đơn bất biến: ngay cả chủ sở hữu bảng cũng không xóa được vì trigger áp dụng cho mọi tài khoản. "
+     "Năm cơ chế tiêu biểu. Hóa đơn bất biến có bốn lớp: trigger áp dụng cho mọi tài khoản; chỉ cấp SELECT, INSERT; mọi đối tượng thuộc role NOLOGIN gym_owner nên không tài khoản đăng nhập nào là chủ sở hữu; event trigger chặn ALTER, DROP bảng, trigger và hàm bất biến kể cả với superuser (superuser là gốc tin cậy nên vẫn bảo trì được nếu cố ý tắt event trigger). Vết thao tác BR-23: tạo thì bắt buộc có người thực hiện, sửa thì tự ghi người sửa và thời điểm sửa. "
      "Tự kích hoạt: tạo hợp đồng Pending, ghi hóa đơn Completed, trigger tự chuyển Active. Hủy muộn: ứng dụng chỉ gửi trạng thái Cancelled, "
      "trigger BEFORE tự đổi thành Late_Cancelled nếu còn dưới 24 giờ, rồi trigger AFTER trừ một buổi. Gia hạn tự động là thủ tục vì PostgreSQL không có "
      "bộ lập lịch, cron gọi mỗi ngày; thủ tục idempotent. Cuối cùng created_by lưu vết người thao tác.")
@@ -454,10 +454,10 @@ add_text(s, Inches(0.5), Inches(4.8), Inches(12.3), Inches(2.0),
           "Tra cứu theo chỉ mục 0,04 - 0,2 ms so với 10 - 30 ms khi quét tuần tự; kiểm tra trùng lịch PT dùng chỉ mục GiST ex_pt_trainer_no_overlap"],
          size=16, bullet=True)
 note("Kết quả kiểm thử", C, 1,
-     "Ba bộ kiểm thử. Mục 5.1: chín mươi tám test ràng buộc đạt cả, gồm 68 test âm tính và 30 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE "
-     "và chạy trong savepoint nên độc lập. Mục 5.2: bốn mươi bảy test phân quyền đạt cả. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây "
+     "Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE "
+     "và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây "
      "trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây "
-     "khi quét tuần tự. Dữ liệu mẫu 715 dòng, ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 15/11/2026; "
+     "khi quét tuần tự. Dữ liệu mẫu 715 dòng, ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; "
      "nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.")
 
 # ----------------------------------------------------------------------------
@@ -470,6 +470,7 @@ add_text(s, Inches(0.5), Inches(1.4), Inches(6.3), Inches(5.4),
           "REVOKE ALL khỏi PUBLIC rồi chỉ cấp phần cần thiết (đặc quyền tối thiểu)",
           "Quyền mức cột: password_hash không ai được SELECT",
           "billing_log chỉ SELECT, INSERT - kể cả Admin (BR-10)",
+          "Mọi đối tượng thuộc role NOLOGIN gym_owner; event trigger chặn ALTER/DROP billing_log, kể cả superuser",
           "Ứng dụng web kết nối bằng gym_u_admin, không dùng superuser"],
          size=17, bullet=True)
 add_text(s, Inches(7.0), Inches(1.4), Inches(6.1), Inches(5.4),
@@ -522,10 +523,10 @@ s = base_slide("Demo trực tiếp (2/2): dòng lệnh Docker và psql", B, 1.5)
 code_box(s, Inches(0.4), Inches(1.35), Inches(12.5), Inches(5.45),
          "# Khởi động toàn bộ hệ thống (CSDL + dữ liệu mẫu + trigger/view + RBAC + web)\n"
          "docker compose up --build\n\n"
-         "# Chạy bộ test ràng buộc 5.1 (105 test)\n"
+         "# Chạy bộ test ràng buộc 5.1 (109 test)\n"
          "docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management \\\n"
          "    -f /sql/05_constraint_test_cases.sql\n\n"
-         "# Chạy bộ test phân quyền 5.2 (48 test)\n"
+         "# Chạy bộ test phân quyền 5.2 (61 test)\n"
          "docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management \\\n"
          "    -f /sql/09_rbac_test_cases.sql\n\n"
          "# Đăng nhập bằng tài khoản lễ tân (mật khẩu demo_2026), thử đọc cột nhạy cảm\n"

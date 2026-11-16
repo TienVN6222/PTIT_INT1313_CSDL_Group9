@@ -51,7 +51,7 @@ Mục này chứng minh hình thức (formal proof) dạng chuẩn của **từn
 
 > **Bổ đề 3 (các cột và ràng buộc bổ sung của lược đồ hiện hành).** Ba nhóm thay đổi sau không làm đổi tập FD của bất kỳ bảng nào:
 >
-> 1. **Cột `created_by_user_id`** (5 bảng: `member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`; BR-23) là thuộc tính khóa ngoại trỏ về `user_account`, cho phép `NULL`, mang ý nghĩa vết kiểm toán *"ai đã thực hiện thao tác"*. Giá trị do trigger `trg_fill_created_by` điền từ biến phiên, không suy ra được từ bất kỳ thuộc tính nào khác (ví dụ lễ tân tạo hợp đồng không xác định bởi `member_user_id` hay `plan_id`). Vì vậy chỉ có FD tầm thường kiểu khóa `K → created_by_user_id` với `K` là khóa dự tuyển, bảng giữ nguyên dạng chuẩn. Tương tự `created_at` (mặc định `CURRENT_TIMESTAMP`) chỉ phụ thuộc vào khóa.
+> 1. **Cột `created_by_user_id`** (5 bảng: `member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`; BR-23) là thuộc tính khóa ngoại trỏ về `user_account` (`NOT NULL`: mọi dòng bắt buộc có người tạo), mang ý nghĩa vết kiểm toán *"ai đã thực hiện thao tác"*. Giá trị do trigger `trg_fill_created_by` điền từ biến phiên, không suy ra được từ bất kỳ thuộc tính nào khác (ví dụ lễ tân tạo hợp đồng không xác định bởi `member_user_id` hay `plan_id`). Vì vậy chỉ có FD tầm thường kiểu khóa `K → created_by_user_id` với `K` là khóa dự tuyển, bảng giữ nguyên dạng chuẩn. Tương tự `created_at` (mặc định `CURRENT_TIMESTAMP`) chỉ phụ thuộc vào khóa. Cặp cột `updated_by_user_id` (FK, cho phép `NULL`) và `updated_at` do trigger `trg_set_updated_by` ghi cũng là thuộc tính vết kiểm toán chỉ phụ thuộc khóa: không sinh FD mới, không phá chuẩn (một dòng một người sửa gần nhất).
 > 2. **Miền giá trị trạng thái** (`CHECK ... IN (...)`), gồm cả bổ sung `'Late_Cancelled'` cho `pt_booking.status` (BR-25) và `'E_Wallet'` cho `billing_log.payment_method`: ràng buộc miền một thuộc tính **không phải là FD**, nên không ảnh hưởng đến 2NF/3NF/BCNF.
 > 3. **Chỉ mục duy nhất một phần** (`uq_member_one_active_subscription`, `uq_billing_subscription_period`): chỉ ràng buộc một *tập con* bản ghi. Theo định nghĩa, khóa dự tuyển phải xác định duy nhất **mọi** bộ của quan hệ, nên chỉ mục duy nhất một phần **không** là khóa dự tuyển (xem chi tiết ở mục (10) và (11)). ∎
 
@@ -162,9 +162,9 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - **FD bị loại trừ:** `duration_days ↛ price` (gói 30 ngày thường và gói 30 ngày dành cho sinh viên có giá khác nhau); `total_sessions ↛ price`.
 - **Khóa dự tuyển:** `{plan_id}` ⇒ **BCNF**. ∎
 
-#### (10) MEMBER_SUBSCRIPTION(<u>subscription_id</u>, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id)
+#### (10) MEMBER_SUBSCRIPTION(<u>subscription_id</u>, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
-- **FD:** `subscription_id → member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id`. Khóa ngoại `member_user_id` trỏ về `member_profile` (không phải `user_account`); `created_by_user_id` là FK vết kiểm toán, không tạo FD mới (Bổ đề 3).
+- **FD:** `subscription_id → member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id, updated_by_user_id, updated_at`. Khóa ngoại `member_user_id` trỏ về `member_profile` (không phải `user_account`); `created_by_user_id` là FK vết kiểm toán, không tạo FD mới (Bổ đề 3).
 - **FD bị loại trừ:** đây là bảng dễ bị nghi ngờ có phụ thuộc bắc cầu qua `plan_id` nhất, nên nhóm xét từng trường hợp:
 
   | FD giả định | Vì sao KHÔNG đúng |
@@ -178,7 +178,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - `uq_member_one_active_subscription` (UNIQUE một phần trên `member_user_id WHERE sub_status = 'Active'`, BR-05) cũng **không phải khóa dự tuyển**: một hội viên có nhiều hợp đồng ở trạng thái khác `Active`, nên `member_user_id` không xác định duy nhất mọi bộ. Nó là ràng buộc nghiệp vụ trên tập con bản ghi, không sinh FD `member_user_id → …` trên toàn bảng.
 - **Khóa dự tuyển:** `{subscription_id}` ⇒ **BCNF**. ∎
 
-#### (11) BILLING_LOG(<u>billing_id</u>, subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status, created_at, created_by_user_id)
+#### (11) BILLING_LOG(<u>billing_id</u>, subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
 - **FD:** `billing_id → *`; `invoice_no → billing_id` (`UNIQUE uq_billing_invoice_no`, BR-09).
 - **FD bị loại trừ:** `subscription_id ↛ amount` (một hợp đồng có nhiều kỳ thanh toán với số tiền khác nhau).
@@ -186,7 +186,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
   - Khóa dự tuyển đòi hỏi `K → toàn bộ thuộc tính` đúng với **mọi** bộ của quan hệ. Ở đây mệnh đề `WHERE` loại các hóa đơn `Failed` và `Refunded` ra khỏi ràng buộc: một chu kỳ có thể có hóa đơn `Failed` (thanh toán lỗi) rồi hóa đơn `Completed` phát hành lại, hoặc `Completed` rồi `Refunded`, tức là **nhiều bộ cùng `(subscription_id, billing_period_start)`** nhưng khác `billing_id`, `invoice_no`, `amount`, `payment_status`. Do đó FD `{subscription_id, billing_period_start} → billing_id` **không đúng** trên toàn bảng và ta không được thêm nó vào tập `F`.
   - Hệ quả với dạng chuẩn: vì không có FD mới nào, tập `F` vẫn chỉ gồm các FD có vế trái là `billing_id` hoặc `invoice_no`, nên **BCNF vẫn đạt**. Ràng buộc này thuộc loại *ràng buộc toàn vẹn nghiệp vụ có điều kiện* (conditional uniqueness), được DBMS thực thi hiệu quả bằng partial unique index.
   - Thuộc tính `billing_period_start` (NOT NULL, do trigger `trg_fill_billing_period_start` mặc định bằng `start_time::DATE` của hợp đồng) chỉ phụ thuộc vào khóa; `subscription_id ↛ billing_period_start` vì một hợp đồng có nhiều chu kỳ.
-  - Cột `created_by_user_id` là FK vết kiểm toán, không tạo FD (Bổ đề 3). Miền `payment_status` (4 giá trị) và `payment_method` (4 giá trị gồm `E_Wallet`) là ràng buộc miền, không phải FD.
+  - Cột `created_by_user_id`, `updated_by_user_id`, `updated_at` là FK/thuộc tính vết kiểm toán, không tạo FD (Bổ đề 3). Miền `payment_status` (4 giá trị) và `payment_method` (4 giá trị gồm `E_Wallet`) là ràng buộc miền, không phải FD.
 - **Khóa dự tuyển:** `{billing_id}`, `{invoice_no}`. Mọi vế trái đều là khóa ⇒ **BCNF**. ∎
 
 ### D. Phân hệ Cơ sở vật chất & Lịch tập
@@ -203,7 +203,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - **FD bị loại trừ:** `equipment_name ↛ depreciation_months` (cùng model máy, mua ở các thời điểm khác nhau có thể áp dụng chính sách khấu hao khác nhau).
 - **Khóa dự tuyển:** `{equipment_id}`, `{serial_number}` ⇒ **BCNF**. ∎
 
-#### (14) CLASS_SCHEDULE(<u>class_id</u>, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled, created_by_user_id)
+#### (14) CLASS_SCHEDULE(<u>class_id</u>, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled, created_by_user_id, updated_by_user_id, updated_at)
 
 - **FD:**
   - F1: `class_id → *` (PK)
@@ -236,7 +236,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - **1NF với cặp khóa ngoại loại trừ nhau:** `booking_id` và `class_id` là hai thuộc tính đơn trị có thể `NULL` (*exclusive arc*). `CHECK chk_reservation_source` bảo đảm đúng một trong hai có giá trị. `NULL` không phải giá trị đa trị nên không vi phạm 1NF.
 - **Khóa dự tuyển:** `{reservation_id}` ⇒ **BCNF**. ∎
 
-#### (18) MAINTENANCE_LOG(<u>maintenance_id</u>, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status, created_at, created_by_user_id)
+#### (18) MAINTENANCE_LOG(<u>maintenance_id</u>, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
 - **FD:** `maintenance_id → *` (gồm `created_by_user_id`, FK vết kiểm toán; Bổ đề 3). `staff_user_id` trỏ về `staff_profile`.
 - **FD bị loại trừ:** `equipment_id ↛ staff_user_id` (mỗi lần bảo trì có thể do kỹ thuật viên khác xử lý); `{equipment_id, start_time}` không được khai báo `UNIQUE` nên không phải khóa.
@@ -246,13 +246,13 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 
 ## 2.3.4. Phân tích bảng PT_BOOKING (chỉ đạt 2NF) và quyết định thiết kế
 
-**PT_BOOKING**(<u>booking_id</u>, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id)
+**PT_BOOKING**(<u>booking_id</u>, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
 ### Tập phụ thuộc hàm
 
 | FD | Nguồn gốc |
 |---|---|
-| F1: `booking_id → member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id` | Khóa chính |
+| F1: `booking_id → member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at` | Khóa chính |
 | F2: `subscription_id → member_user_id` | Mỗi hợp đồng thuộc đúng một hội viên. FD này được kéo theo từ `member_subscription`, nơi `subscription_id` là khóa. |
 | F3: `start_time → booking_date` | `booking_date = start_time::DATE`. FD này **được DBMS bảo đảm** bởi `chk_pt_booking_date CHECK (booking_date = start_time::DATE)`; mọi bản ghi (hiện có và tương lai) đều thỏa. |
 
@@ -322,7 +322,7 @@ Nhóm chọn **Cách 3** vì: (i) không phải sửa lệnh `INSERT` của dữ
 
 Nếu áp dụng chuẩn hóa tuyệt đối, phân rã `PT_BOOKING` theo F2 và F3:
 
-- **PT_BOOKING_BCNF**(<u>booking_id</u>, trainer_user_id, subscription_id, start_time, end_time, status, created_at, created_by_user_id)
+- **PT_BOOKING_BCNF**(<u>booking_id</u>, trainer_user_id, subscription_id, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 - `member_user_id` lấy qua phép nối với **MEMBER_SUBSCRIPTION**(<u>subscription_id</u>, member_user_id, …), vốn đã đạt BCNF;
 - `booking_date` tính bằng biểu thức `start_time::DATE`.
 
@@ -338,5 +338,5 @@ Nếu áp dụng chuẩn hóa tuyệt đối, phân rã `PT_BOOKING` theo F2 và
 
 1. **17/18 bảng đạt BCNF.** Mọi phụ thuộc hàm không tầm thường đều có vế trái là khóa dự tuyển. Các phụ thuộc "có vẻ hợp lý" đã được xét và loại trừ bằng lập luận nghiệp vụ, hoặc bằng phản ví dụ từ dữ liệu mẫu.
 2. **`pt_booking` đạt 2NF, không đạt 3NF/BCNF về mặt hình thức.** Hai phụ thuộc bắc cầu còn lại là phi chuẩn hóa **có chủ đích và có kiểm soát**: `subscription_id → member_user_id` phục vụ ràng buộc `EXCLUDE` (BR-16) và được khóa ngoại ghép `fk_booking_subscription_member` bảo đảm tuyệt đối; `start_time → booking_date` được `chk_pt_booking_date` (Cách 3, đã áp dụng) bảo đảm. Cả hai đều không thể sinh dữ liệu mâu thuẫn.
-3. **Các bổ sung của lược đồ hiện hành không phá vỡ BCNF của 17 bảng còn lại:** cột `created_by_user_id` (FK vết kiểm toán, BR-23), cột `billing_period_start`, miền `Late_Cancelled`/`E_Wallet`, và hai chỉ mục duy nhất một phần (`uq_member_one_active_subscription`, `uq_billing_subscription_period`). Chỉ mục duy nhất một phần chỉ ràng buộc một tập con bản ghi nên **không** là khóa dự tuyển và không thêm FD nào (Bổ đề 3), đặc biệt `billing_log` vẫn đạt BCNF.
+3. **Các bổ sung của lược đồ hiện hành không phá vỡ BCNF của 17 bảng còn lại:** cột `created_by_user_id`, `updated_by_user_id`, `updated_at` (FK/thuộc tính vết kiểm toán, BR-23), cột `billing_period_start`, miền `Late_Cancelled`/`E_Wallet`, và hai chỉ mục duy nhất một phần (`uq_member_one_active_subscription`, `uq_billing_subscription_period`). Chỉ mục duy nhất một phần chỉ ràng buộc một tập con bản ghi nên **không** là khóa dự tuyển và không thêm FD nào (Bổ đề 3), đặc biệt `billing_log` vẫn đạt BCNF.
 4. Các thuộc tính **ảnh chụp lịch sử** (`actual_price`, `end_time`, `remaining_sessions` trong `member_subscription`) và **dữ liệu dẫn xuất được trigger đồng bộ** (`current_enrolled`) không tạo ra phụ thuộc bắc cầu. Chúng được giữ có chủ đích để bảo toàn lịch sử giao dịch và để thực thi ràng buộc ở mức CSDL.

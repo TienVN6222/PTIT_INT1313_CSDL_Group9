@@ -211,7 +211,7 @@ SPEC_note [shape=note, fontsize=14, style=filled, fillcolor=white, label="overla
 SPEC -> SPEC_note [style=dotted];
 XOR [shape=circle, width=0.55, fixedsize=true, style="filled,dashed", fillcolor="#e9f7e9", fontsize=14, label="XOR", pos="5.00,-30.00!"];
 RES -> XOR [style=dashed]; XOR -> R_FB [style=dashed]; XOR -> R_FC [style=dashed];
-CBY [shape=note, fontsize=14, style=filled, fillcolor="#f3e8ff", label="CREATED_BY (BR-23), 1 : N, partial:\nUSER_ACCOUNT (0..1 actor) --> MEMBER_SUBSCRIPTION,\nBILLING_LOG, CLASS_SCHEDULE, PT_BOOKING,\nMAINTENANCE_LOG (attribute created_by_user_id;\nnot drawn as lines to keep the diagram readable)", pos="-11.00,6.50!"];
+CBY [shape=note, fontsize=14, style=filled, fillcolor="#f3e8ff", label="CREATED_BY / UPDATED_BY (BR-23), 1 : N:\nUSER_ACCOUNT (1 creator, 0..1 last editor) --> MEMBER_SUBSCRIPTION,\nBILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG\n(attributes created_by_user_id NOT NULL, updated_by_user_id, updated_at;\nnot drawn as lines to keep the diagram readable)", pos="-11.00,6.50!"];
 CBY -> USER [style=dotted, arrowhead=none];
 LEG [shape=none, fontsize=14, label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3">
 <TR><TD ALIGN="LEFT"><B>Legend</B></TD></TR>

@@ -40,9 +40,12 @@ SET client_min_messages = WARNING;
 -- BƯỚC 1: SINH DỮ LIỆU KHỐI LƯỢNG LỚN (TẠM THỜI)
 -- ============================================================================
 
--- Tạm tắt trigger người dùng (BR-08, BR-18, chồng lấn chéo bảng, created_by...) để nạp
--- nhanh 320.000 dòng tổng hợp. Chỉ ảnh hưởng tới việc NẠP; các ràng buộc CHECK/UNIQUE/
+-- Tạm tắt trigger người dùng (BR-08, BR-18, chồng lấn chéo bảng, BR-23 điền created_by...) để nạp
+-- nhanh 320.000 dòng tổng hợp (created_by_user_id = 3 được nêu tường minh vì cột NOT NULL vẫn có hiệu lực). Chỉ ảnh hưởng tới việc NẠP; các ràng buộc CHECK/UNIQUE/
 -- EXCLUDE/FK vẫn hoạt động. Trigger được bật lại ngay trước khi đo (cuối BƯỚC 1).
+-- Event trigger bảo vệ billing_log (08_rbac_security.sql PHẦN 7) chặn ALTER TABLE; superuser dùng lối thoát có chủ đích
+-- (chỉ hiệu lực trong giao dịch này) để tắt/bật trigger lúc nạp dữ liệu hàng loạt.
+SET LOCAL app.allow_billing_maintenance = 'on';
 ALTER TABLE billing_log DISABLE TRIGGER USER;
 ALTER TABLE pt_booking DISABLE TRIGGER USER;
 
@@ -60,7 +63,7 @@ FROM
 -- 200.000 hóa đơn trải đều 3 năm (2024 - 2026) cho 30 hợp đồng có sẵn
 -- billing_period_start khác nhau cho từng dòng => thỏa chỉ mục duy nhất uq_billing_subscription_period (BR-08)
 -- (trigger tự điền cột này đã bị tắt nên phải cung cấp tường minh; lùi về năm 1000 để không đụng dữ liệu mẫu)
-INSERT INTO billing_log (subscription_id, invoice_no, amount, payment_date, payment_method, payment_status, billing_period_start)
+INSERT INTO billing_log (subscription_id, invoice_no, amount, payment_date, payment_method, payment_status, billing_period_start, created_by_user_id)
 SELECT
     1 + (g % 30),
     'PERF-INV-' || LPAD(g::TEXT, 7, '0'),
@@ -68,14 +71,15 @@ SELECT
     DATE '2024-01-01' + (g % 1095),
     (ARRAY['Cash', 'Credit_Card', 'Banking', 'E_Wallet'])[1 + g % 4],
     CASE WHEN g % 20 = 0 THEN 'Refunded' ELSE 'Completed' END,
-    DATE '1000-01-01' + g
+    DATE '1000-01-01' + g,
+    3
 FROM
     generate_series(1, 200000) AS g;
 
 -- 120.000 ca PT: mỗi HLV (ID 5..10) ghép cố định với một hợp đồng PT còn buổi,
 -- mỗi ca 1 giờ nối tiếp nhau từ năm 2031 => không vi phạm ràng buộc EXCLUDE chống trùng lịch.
 -- (trigger BR-18 kiểm tra hợp đồng còn hiệu lực/còn buổi bị tắt vì ca PT ở tương lai xa)
-INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status)
+INSERT INTO pt_booking (member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_by_user_id)
 SELECT
     pair.member_user_id,
     pair.trainer_user_id,
@@ -83,7 +87,8 @@ SELECT
     (TIMESTAMP '2031-01-01 00:00' + g * INTERVAL '1 hour')::DATE,
     TIMESTAMP '2031-01-01 00:00' + g * INTERVAL '1 hour',
     TIMESTAMP '2031-01-01 00:00' + (g + 1) * INTERVAL '1 hour',
-    'Scheduled'
+    'Scheduled',
+    3
 FROM
     (VALUES (5, 11, 1), (6, 13, 3), (7, 16, 6), (8, 18, 8), (9, 20, 10), (10, 21, 11))
         AS pair (trainer_user_id, member_user_id, subscription_id)

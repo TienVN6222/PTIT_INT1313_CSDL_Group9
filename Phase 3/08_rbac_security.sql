@@ -17,12 +17,15 @@
 --     Trainer, Technician, Member. 5 tài khoản đăng nhập mẫu thừa hưởng (INHERIT)
 --     quyền từ role nhóm tương ứng.
 --   * Cột nhạy cảm (user_account.password_hash) được bảo vệ bằng GRANT mức cột.
---   * BR-10 (hóa đơn bất biến) được bảo vệ 2 lớp: (1) trigger trg_billing_immutable_update/
+--   * BR-10 (hóa đơn bất biến) được bảo vệ 4 lớp: (1) trigger trg_billing_immutable_update/
 --     _delete/_truncate (04_triggers_views.sql) áp dụng cho MỌI role kể cả chủ sở hữu/superuser;
---     (2) phân quyền: billing_log chỉ cấp SELECT, INSERT cho mọi role, kể cả Admin (lỗi 42501).
---     Cách vượt duy nhất còn lại: chủ sở hữu bảng chạy ALTER TABLE ... DISABLE TRIGGER (có chủ đích, để lại dấu vết DDL).
--- ============================================================================
-
+--     (2) phân quyền: billing_log chỉ cấp SELECT, INSERT cho mọi role, kể cả Admin (lỗi 42501);
+--     (3) mọi đối tượng ứng dụng thuộc role NOLOGIN gym_owner; không tài khoản đăng nhập nào
+--     (gym_u_*) là chủ sở hữu hay thành viên của gym_owner => không ai ALTER/DROP được billing_log;
+--     (4) EVENT TRIGGER evt_protect_billing_log chặn ALTER TABLE / DROP TABLE / DROP|ALTER TRIGGER
+--     trên billing_log và sửa/xóa các hàm trigger bất biến, kể cả với superuser.
+--     Superuser là gốc tin cậy (trust root) của mọi DBMS: muốn bảo trì hợp lệ phải CHỦ ĐỘNG
+--     tắt event trigger hoặc đặt app.allow_billing_maintenance = 'on' (xem PHẦN 7).
 -- ============================================================================
 -- PHẦN 1: DỌN DẸP ROLE CŨ (IDEMPOTENT)
 -- ============================================================================
@@ -41,6 +44,69 @@ BEGIN
             EXECUTE format('DROP OWNED BY %I', v_role);
             EXECUTE format('DROP ROLE %I', v_role);
         END IF;
+    END LOOP;
+END;
+$$;
+
+-- ============================================================================
+-- PHẦN 1B: DỠ EVENT TRIGGER CŨ + CHỦ SỞ HỮU DUY NHẤT gym_owner (IDEMPOTENT)
+-- ============================================================================
+-- Phải gỡ event trigger TRƯỚC khi đổi chủ sở hữu/cấp quyền (nó chặn ALTER TABLE ... OWNER);
+-- chúng được tạo lại ở cuối tập tin (PHẦN 7).
+DROP EVENT TRIGGER IF EXISTS evt_protect_billing_log;
+DROP EVENT TRIGGER IF EXISTS evt_protect_billing_log_drop;
+
+-- gym_owner: role NOLOGIN, KHÔNG phải superuser, không là thành viên của role nào và không role
+-- đăng nhập nào là thành viên của nó. Chỉ superuser (gốc tin cậy) mới SET ROLE/ALTER OWNER được.
+-- Không bao giờ DROP gym_owner khi chạy lại vì làm vậy sẽ kéo theo xóa đối tượng ứng dụng.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gym_owner') THEN
+        CREATE ROLE gym_owner NOLOGIN;
+    END IF;
+END;
+$$;
+
+GRANT USAGE, CREATE ON SCHEMA public TO gym_owner;
+
+-- Chuyển chủ sở hữu mọi bảng, view, sequence, hàm, thủ tục (trừ đối tượng của extension btree_gist
+-- và sequence gắn với cột serial/identity - chúng tự đi theo bảng).
+DO $$
+DECLARE
+    v_rec RECORD;
+BEGIN
+    FOR v_rec IN
+        SELECT c.relkind, c.oid::REGCLASS::TEXT AS obj
+        FROM pg_class AS c
+        JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+          AND NOT EXISTS (SELECT 1 FROM pg_depend AS d
+                          WHERE d.objid = c.oid AND d.classid = 'pg_class'::REGCLASS
+                            AND d.deptype IN ('e', 'a', 'i'))
+        ORDER BY c.relkind, c.relname
+    LOOP
+        EXECUTE format('ALTER %s %s OWNER TO gym_owner',
+                       CASE v_rec.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
+                                          WHEN 'S' THEN 'SEQUENCE' ELSE 'TABLE' END,
+                       v_rec.obj);
+    END LOOP;
+
+    FOR v_rec IN
+        SELECT p.prokind, p.oid::REGPROCEDURE::TEXT AS obj
+        FROM pg_proc AS p
+        JOIN pg_namespace AS n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.prokind IN ('f', 'p')
+          AND p.proname <> 'fn_evt_protect_billing_log'
+          AND NOT EXISTS (SELECT 1 FROM pg_depend AS d
+                          WHERE d.objid = p.oid AND d.classid = 'pg_proc'::REGCLASS
+                            AND d.deptype = 'e')
+        ORDER BY p.proname
+    LOOP
+        EXECUTE format('ALTER %s %s OWNER TO gym_owner',
+                       CASE v_rec.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END,
+                       v_rec.obj);
     END LOOP;
 END;
 $$;
@@ -172,7 +238,8 @@ CREATE ROLE gym_u_member    LOGIN INHERIT PASSWORD 'demo_2026' IN ROLE gym_role_
 -- UPDATE member_subscription - bảng mà HLV không (và không được) có quyền ghi;
 -- lễ tân thêm class_enrollment sẽ kích hoạt UPDATE class_schedule.current_enrolled.
 -- Nếu không có SECURITY DEFINER, các thao tác hợp lệ này sẽ bị từ chối (42501).
--- Giải pháp: hàm trigger chạy bằng quyền chủ sở hữu hàm, nên quyền trực tiếp của
+-- Giải pháp: hàm trigger chạy bằng quyền chủ sở hữu hàm (gym_owner, chủ mọi bảng nên đủ quyền
+-- SELECT ... FOR UPDATE, UPDATE chéo bảng...), nên quyền trực tiếp của
 -- role gọi vẫn được giữ tối thiểu. SET search_path cố định để chống tấn công
 -- chiếm quyền qua search_path (pg_temp đặt cuối để không bị che khuất đối tượng thật).
 -- Danh sách hàm trigger được liệt kê động từ pg_proc (mọi hàm trả về TRIGGER trong schema
@@ -310,3 +377,75 @@ GROUP BY
     cg.grantee, cg.table_name, cg.privilege_type
 ORDER BY
     cg.grantee, cg.table_name, cg.privilege_type;
+
+-- ============================================================================
+-- PHẦN 7: EVENT TRIGGER BẢO VỆ billing_log (BR-10) - TẠO Ở CUỐI TẬP TIN
+-- ============================================================================
+-- Vì sao cần: trigger trg_billing_immutable_* có thể bị vô hiệu bởi chủ sở hữu bảng bằng
+-- ALTER TABLE billing_log DISABLE TRIGGER ... hoặc DROP TRIGGER. Lớp (3) đã tước quyền đó của mọi
+-- role đăng nhập (chủ sở hữu là gym_owner NOLOGIN); event trigger là lớp (4) chặn nốt cả superuser
+-- thao tác NHẦM hoặc thiếu chủ đích. Event trigger KHÔNG thể ngăn superuser cố tình (superuser là
+-- gốc tin cậy của mọi DBMS: có thể ALTER EVENT TRIGGER ... DISABLE, SET session_replication_role =
+-- replica, sửa danh mục hệ thống...). Mục tiêu: mọi thay đổi phải là hành vi CÓ CHỦ ĐÍCH, để lại dấu vết.
+--
+-- Hai cách bảo trì hợp lệ (chỉ superuser):
+--   a) ALTER EVENT TRIGGER evt_protect_billing_log DISABLE;  (và ..._drop)  ... làm việc ... ENABLE;
+--   b) trong CÙNG giao dịch/phiên:  SET LOCAL app.allow_billing_maintenance = 'on';
+--      (bị bỏ qua nếu người chạy không phải superuser.) 06_performance_test_cases.sql dùng cách b).
+--
+-- Chặn (kiểm tra ở ddl_command_end bằng pg_event_trigger_ddl_commands, và ở sql_drop bằng
+-- pg_event_trigger_dropped_objects; RAISE EXCEPTION làm lệnh DDL bị hoàn tác):
+--   * ALTER TABLE billing_log ... (DISABLE/ENABLE TRIGGER, OWNER, RENAME, SET SCHEMA...)
+--   * ALTER TRIGGER ... ON billing_log (đổi tên); CREATE OR REPLACE / ALTER FUNCTION
+--     trg_fn_billing_immutable_* (thay ruột hàm cũng vô hiệu hóa BR-10)
+--   * DROP TABLE billing_log; DROP TRIGGER bất kỳ trigger nào trên billing_log;
+--     DROP FUNCTION trg_fn_billing_immutable_*
+-- Lưu ý: vì vậy chạy lại 04_triggers_views.sql trên CSDL đã có event trigger sẽ bị chặn
+-- (nó DROP/CREATE trigger và hàm bất biến); phải dùng lối thoát a) hoặc b) cho lần chạy đó.
+CREATE OR REPLACE FUNCTION fn_evt_protect_billing_log()
+RETURNS EVENT_TRIGGER AS $$
+DECLARE
+    v_rec RECORD;
+BEGIN
+    -- Lối thoát có chủ đích: chỉ superuser đã đặt app.allow_billing_maintenance = 'on'.
+    IF COALESCE(CURRENT_SETTING('app.allow_billing_maintenance', TRUE), '') = 'on'
+       AND CURRENT_SETTING('is_superuser') = 'on' THEN
+        RETURN;
+    END IF;
+
+    IF TG_EVENT = 'sql_drop' THEN
+        FOR v_rec IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
+            IF (v_rec.object_type = 'table' AND v_rec.object_identity = 'public.billing_log')
+               OR (v_rec.object_type = 'trigger' AND v_rec.object_identity LIKE '% on public.billing_log')
+               OR (v_rec.object_type = 'function'
+                   AND v_rec.object_identity LIKE 'public.trg_fn_billing_immutable_%') THEN
+                RAISE EXCEPTION USING ERRCODE = 'P0001',
+                    MESSAGE = FORMAT('Lỗi nghiệp vụ BR-10: Không được xóa %s %s (nhật ký thanh toán bất biến)',
+                                     v_rec.object_type, v_rec.object_identity),
+                    HINT = 'Bảo trì hợp lệ: superuser chạy ALTER EVENT TRIGGER evt_protect_billing_log DISABLE (và evt_protect_billing_log_drop) hoặc SET LOCAL app.allow_billing_maintenance = "on"';
+            END IF;
+        END LOOP;
+    ELSE
+        FOR v_rec IN SELECT * FROM pg_event_trigger_ddl_commands() LOOP
+            IF (v_rec.object_identity = 'public.billing_log')
+               OR (v_rec.object_type = 'trigger' AND v_rec.object_identity LIKE '% on public.billing_log')
+               OR (v_rec.object_type = 'function'
+                   AND v_rec.object_identity LIKE 'public.trg_fn_billing_immutable_%') THEN
+                RAISE EXCEPTION USING ERRCODE = 'P0001',
+                    MESSAGE = FORMAT('Lỗi nghiệp vụ BR-10: Không được thay đổi (%s) %s (nhật ký thanh toán bất biến)',
+                                     v_rec.command_tag, v_rec.object_identity),
+                    HINT = 'Bảo trì hợp lệ: superuser chạy ALTER EVENT TRIGGER evt_protect_billing_log DISABLE (và evt_protect_billing_log_drop) hoặc SET LOCAL app.allow_billing_maintenance = "on"';
+            END IF;
+        END LOOP;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE EVENT TRIGGER evt_protect_billing_log ON ddl_command_end
+    WHEN TAG IN ('ALTER TABLE', 'ALTER TRIGGER', 'ALTER FUNCTION', 'CREATE FUNCTION')
+    EXECUTE FUNCTION fn_evt_protect_billing_log();
+
+-- Sự kiện sql_drop cần event trigger riêng cho các lệnh DROP.
+CREATE EVENT TRIGGER evt_protect_billing_log_drop ON sql_drop
+    WHEN TAG IN ('DROP TABLE', 'DROP TRIGGER', 'DROP FUNCTION')
+    EXECUTE FUNCTION fn_evt_protect_billing_log();

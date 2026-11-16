@@ -56,7 +56,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-02 | Admin | Tôi phải gán được vai trò cho từng người dùng để mỗi người chỉ làm đúng việc của mình. |
 | UR-03 | Lễ tân | Tôi phải đăng ký được gói tập cho hội viên và biết hợp đồng nào đang có hiệu lực. |
 | UR-04 | Lễ tân | Tôi phải ghi nhận được thanh toán, và hợp đồng chỉ có hiệu lực khi đã thanh toán. |
-| UR-05 | Admin, Kế toán nội bộ | Tôi phải tin rằng hóa đơn đã thu tiền không thể bị sửa hay xóa, để đối soát được. |
+| UR-05 | FR-12, NFR-SEC-04 | BR-10 | `billing_log` | `trg_billing_immutable_update/_delete/_truncate`; `GRANT SELECT, INSERT`; role `gym_owner` NOLOGIN; event trigger `evt_protect_billing_log`/`_drop` | 05: BR-10: TC-17, TC-44..TC-49, TP-12..TP-14; 09: RD-03, RD-04, AD-01, AD-02, AD-03, EV-01..EV-13 |
 | UR-06 | Hội viên, Lễ tân | Hợp đồng dài hạn phải tự gia hạn đúng hạn, và hội viên không trả tiền phải bị tạm ngưng sau thời gian ân hạn. |
 | UR-07 | Lễ tân, HLV | Tôi phải lập được lịch lớp nhóm mà không bị trùng giờ HLV hay trùng phòng. |
 | UR-08 | Lễ tân, Hội viên | Hội viên phải đăng ký được lớp, nhưng không vượt quá sức chứa và không bị trùng với lịch khác của họ. |
@@ -66,7 +66,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-12 | Kỹ thuật viên | Tôi phải quản lý được danh mục thiết bị, ngày mua, khấu hao và lịch sử bảo trì kèm chi phí. |
 | UR-13 | Lễ tân, HLV | Thiết bị hoặc phòng đang bảo trì không được xếp vào lịch mới, và một máy không bị hai ca giữ cùng lúc. |
 | UR-14 | Admin | Tôi phải xem được báo cáo doanh thu, tỷ lệ lấp đầy lớp, hiệu suất HLV, và các hợp đồng sắp hết hạn. |
-| UR-15 | Admin | Mọi giao dịch quan trọng phải truy được người thực hiện. |
+| UR-15 | FR-30 | BR-23 | `member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log` | cột `created_by_user_id NOT NULL`, `updated_by_user_id`, `updated_at`, `fk_*_created_by`/`fk_*_updated_by`, `trg_fill_created_by`, `trg_set_updated_by` | 05: BR-23: TC-65, TC-72..TC-74, TP-20..TP-22, TP-35 |
 | UR-16 | Mọi người dùng | Mật khẩu và thông tin nhạy cảm của tôi phải được bảo vệ. |
 | UR-17 | Mọi người dùng | Tra cứu thông tin phải phản hồi nhanh, không phải chờ đáng kể khi dữ liệu lớn. |
 | UR-18 | Admin | Dữ liệu phải được sao lưu để khôi phục được khi có sự cố. |
@@ -97,7 +97,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | FR-09 | Hệ thống phải từ chối chuyển hợp đồng sang `Active` khi chưa có hóa đơn `Completed`, và phải tự chuyển hợp đồng `Pending` sang `Active` khi hóa đơn của nó được ghi nhận `Completed`. | BR-07 |
 | FR-10 | Hệ thống phải cho phép ghi hóa đơn (`billing_log`) với `invoice_no` duy nhất, `amount > 0`, phương thức và trạng thái thuộc miền giá trị quy định. | BR-09 |
 | FR-11 | Hệ thống phải bảo đảm mỗi chu kỳ tính phí (`billing_period_start`) của một hợp đồng chỉ có tối đa một hóa đơn `Pending` hoặc `Completed`. | BR-08 |
-| FR-12 | Hệ thống phải từ chối xóa và `TRUNCATE` hóa đơn; hóa đơn `Completed` chỉ được chuyển sang `Refunded` và không được đổi cột nào khác; hóa đơn `Failed`/`Refunded` không được sửa. | BR-10 |
+| FR-12 | Hệ thống phải từ chối xóa và `TRUNCATE` hóa đơn; hóa đơn `Completed` chỉ được chuyển sang `Refunded` và không được đổi cột nào khác; hóa đơn `Failed`/`Refunded` không được sửa; việc `ALTER`/`DROP` bảng `billing_log`, trigger bất biến và các hàm trigger bất biến cũng bị chặn (kể cả với superuser, trừ khi bảo trì có chủ đích). | BR-10 |
 | FR-13 | Hệ thống phải cung cấp thủ tục `sp_process_subscription_renewals(p_as_of, p_grace_days)` để: chuyển hợp đồng không tự gia hạn quá hạn sang `Expired`; phát hành hóa đơn `Pending` cho hợp đồng tự gia hạn quá hạn; chuyển hợp đồng tự gia hạn sang `Suspended` khi quá hạn ân hạn mà chưa thanh toán; thủ tục phải idempotent. | BR-24 |
 | FR-14 | Hệ thống phải gia hạn hợp đồng (cộng `duration_days`, đặt lại `remaining_sessions`, chuyển `Active`) khi hóa đơn gia hạn được thanh toán. | BR-24, BR-07 |
 
@@ -130,7 +130,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | FR-27 | Hệ thống phải cho phép giữ chỗ thiết bị (`equipment_reservation`) gắn đúng một nguồn (ca PT hoặc lớp), và từ chối giữ chỗ trùng giờ trên cùng thiết bị. | BR-21 |
 | FR-28 | Hệ thống phải từ chối giữ chỗ thiết bị đang `Under_Maintenance`, hoặc trùng khung giờ ca bảo trì `In_Progress`, hoặc vượt ngoài khung giờ của ca/lớp gắn kèm; từ chối chuyển thiết bị sang `Under_Maintenance` khi còn lượt giữ chỗ `Reserved` trong tương lai; và tự đồng bộ trạng thái thiết bị theo nhật ký bảo trì (mở ca `In_Progress` → `Under_Maintenance`; ca kết thúc và không còn ca đang sửa → `Operational`). | BR-19, BR-21 |
 | FR-29 | Hệ thống phải cho phép Kỹ thuật viên ghi nhật ký bảo trì (`maintenance_log`) với `cost >= 0`, `end_time >= start_time` (nếu có) và người thực hiện là nhân viên. | BR-20 |
-| FR-30 | Hệ thống phải tự điền `created_by_user_id` từ biến phiên `app.current_user_id` khi tạo hợp đồng, hóa đơn, lịch lớp, ca PT và nhật ký bảo trì (nếu ứng dụng đã đặt biến). | BR-23 |
+| FR-30 | Hệ thống phải bắt buộc ghi `created_by_user_id` (NOT NULL) từ biến phiên `app.current_user_id` khi tạo hợp đồng, hóa đơn, lịch lớp, ca PT và nhật ký bảo trì, từ chối thao tác nếu chưa đặt biến phiên; và phải ghi `updated_by_user_id`, `updated_at` ở mỗi `UPDATE` đồng thời cấm đổi `created_by_user_id`. | BR-23 |
 
 #### Nhóm F — Báo cáo và truy vấn
 
@@ -149,7 +149,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | NFR-SEC-01 | Hệ thống phải áp dụng đặc quyền tối thiểu: `REVOKE ALL` trên mọi bảng và sequence của schema `public` khỏi `PUBLIC`, sau đó chỉ `GRANT` cho 5 role nhóm đúng quyền theo ma trận trong `08_rbac_security.sql`; không role nào có `TRUNCATE`; Lễ tân không có `DELETE` ở bất kỳ bảng nào. |
 | NFR-SEC-02 | Mật khẩu phải chỉ được lưu dưới dạng băm trong `user_account.password_hash` (không lưu bản rõ), và cột này phải không đọc được (`SELECT` mức cột không gồm `password_hash`) bởi mọi role ứng dụng; Lễ tân không được `UPDATE` cột này. |
 | NFR-SEC-03 | Dữ liệu phải được mã hóa khi lưu trữ (encryption at rest). **Đây là yêu cầu triển khai** (đĩa/volume mã hóa như LUKS hoặc mã hóa lưu trữ của nhà cung cấp đám mây, kết nối TLS); bản Docker demo **chưa** cài đặt mã hóa này và bản demo dùng mật khẩu mẫu `demo_2026` cho các tài khoản `gym_u_*` phải được đổi khi triển khai thật. |
-| NFR-SEC-04 | Hóa đơn phải bất biến: mọi role ứng dụng (kể cả Admin) chỉ có `SELECT, INSERT` trên `billing_log`, đồng thời trigger `trg_billing_immutable_*` phải chặn `UPDATE`/`DELETE`/`TRUNCATE` sai quy định kể cả với chủ sở hữu bảng. |
+| NFR-SEC-04 | Hóa đơn phải bất biến theo bốn lớp: (1) trigger `trg_billing_immutable_*` chặn `UPDATE`/`DELETE`/`TRUNCATE` sai quy định; (2) mọi role ứng dụng (kể cả Admin) chỉ có `SELECT, INSERT` trên `billing_log`; (3) mọi đối tượng ứng dụng thuộc role `NOLOGIN` `gym_owner`, không tài khoản đăng nhập nào là chủ sở hữu; (4) event trigger `evt_protect_billing_log`/`_drop` chặn `ALTER`/`DROP` `billing_log`, trigger và hàm bất biến, kể cả với superuser (superuser chỉ bảo trì được bằng thao tác tường minh `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`). |
 | NFR-SEC-05 | Hàm trigger cần ghi vào bảng mà role gọi không có quyền phải chạy `SECURITY DEFINER` với `search_path` cố định (`public, pg_temp`) để không phải cấp thêm quyền ghi cho role. |
 
 #### Hiệu năng (Performance)
@@ -174,7 +174,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | Mã | Yêu cầu |
 | :--- | :--- |
 | NFR-AVL-01 | Khi triển khai thật, quản trị phải sao lưu định kỳ (khuyến nghị `pg_dump` hằng ngày kèm sao lưu liên tục WAL) và kiểm tra khôi phục. Bản demo chỉ dùng Docker volume, chưa có lịch sao lưu tự động. |
-| NFR-AVL-02 | Thủ tục `sp_process_subscription_renewals` phải được bộ lập lịch bên ngoài gọi định kỳ (mặc định mỗi ngày) và an toàn khi gọi lặp. Docker demo có service `scheduler` (`fitzone_renewal_scheduler`, chu kỳ `RENEWAL_INTERVAL_SECONDS`); production dùng `pg_cron` hoặc cron. |
+| NFR-AVL-02 | Thủ tục `sp_process_subscription_renewals` phải được bộ lập lịch bên ngoài gọi định kỳ (mặc định mỗi ngày) và an toàn khi gọi lặp. Docker demo có service `scheduler` (`fitzone_renewal_scheduler`, chu kỳ `RENEWAL_INTERVAL_SECONDS`, người thực hiện ghi vết BR-23 lấy từ `SCHEDULER_ACTOR_USER_ID`, mặc định 3); production dùng `pg_cron` hoặc cron và phải đặt `app.current_user_id` cho phiên gọi. |
 
 #### Khả bảo trì (Maintainability)
 
@@ -211,7 +211,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 **Giả định**
 
 - Ca PT diễn ra ở khu tập tự do, không gắn với phòng cụ thể; BR-15 chỉ áp dụng cho lớp nhóm.
-- Ứng dụng đặt `app.current_user_id` cho mỗi phiên làm việc để truy vết người thực hiện (BR-23); nếu không đặt thì cột giữ `NULL`.
+- Ứng dụng đặt `app.current_user_id` cho mỗi phiên làm việc để truy vết người thực hiện (BR-23); nếu không đặt thì thao tác ghi bị CSDL từ chối (người dùng thủ công chạy `SET app.current_user_id = '<id>'`; bộ lập lịch dùng biến `SCHEDULER_ACTOR_USER_ID`, mặc định 3).
 - Nhân viên kỹ thuật cập nhật trạng thái `Under_Maintenance` của phòng/thiết bị; hệ thống không tự suy ra từ nhật ký bảo trì.
 - Mỗi hội viên có hợp đồng đang dùng tối đa một gói tại một thời điểm.
 - Mã hóa dữ liệu lưu trữ và sao lưu do hạ tầng triển khai đảm nhận.
@@ -220,7 +220,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 
 ## 6. Ma trận truy vết (Traceability Matrix)
 
-Cột "Kiểm chứng" dẫn đến mã test cụ thể trong: **05** = `05_constraint_test_cases.sql` (105 test: TC-01..TC-71, TP-01..TP-34), **09** = `09_rbac_test_cases.sql` (48 test: RA/RD/TA/TD/EA/ED/MA/MD/AA/AD/LA/LD), **06** = `06_performance_test_cases.sql` (PT-01..PT-08). Mã test được kiểm tra khớp với tập tin SQL tại thời điểm cập nhật.
+Cột "Kiểm chứng" dẫn đến mã test cụ thể trong: **05** = `05_constraint_test_cases.sql` (109 test: TC-01..TC-74, TP-01..TP-35), **09** = `09_rbac_test_cases.sql` (61 test: RA/RD/TA/TD/EA/ED/MA/MD/AA/AD/LA/LD và EV-01..EV-13), **06** = `06_performance_test_cases.sql` (PT-01..PT-08). Mã test được kiểm tra khớp với tập tin SQL tại thời điểm cập nhật.
 
 | UR | FR / NFR | BR | Bảng | Đối tượng thực thi | Kiểm chứng |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -242,7 +242,7 @@ Cột "Kiểm chứng" dẫn đến mã test cụ thể trong: **05** = `05_cons
 | UR-16 | NFR-SEC-01, NFR-SEC-02, NFR-SEC-03, NFR-SEC-05 | BR-22 | `user_account` | `REVOKE ... FROM PUBLIC`, `GRANT SELECT (cột)` không gồm `password_hash`, `SECURITY DEFINER` | 09: RD-01, RD-02, AD-04 (ẩn password_hash), RD-03..RD-06, TD-01..TD-07, ED-01..ED-05, MD-01..MD-05 (từ chối quyền ngoài ma trận), TA-01, RA-03 (SECURITY DEFINER) |
 | UR-17 | NFR-PERF-01, NFR-PERF-02 | — | `user_account`, `billing_log`, `pt_booking` | các chỉ mục `idx_*` | 06: PT-01..PT-08 |
 | UR-18 | NFR-AVL-01 | — | toàn CSDL | quy trình `pg_dump` (triển khai) | Không kiểm thử tự động; kiểm chứng thủ công khi triển khai |
-| UR-01..UR-13 | NFR-INT-01..NFR-INT-05 | BR-01..BR-26 | toàn CSDL | khóa ngoại, `CHECK`, `EXCLUDE`, khối kiểm toán dữ liệu | 05: TC-01..TC-71, TP-01..TP-34 (toàn bộ 105 test); khối DATA AUDIT của `04_triggers_views.sql` |
+| UR-01..UR-13 | NFR-INT-01..NFR-INT-05 | BR-01..BR-26 | toàn CSDL | khóa ngoại, `CHECK`, `EXCLUDE`, khối kiểm toán dữ liệu | 05: TC-01..TC-74, TP-01..TP-35 (toàn bộ 109 test); khối DATA AUDIT của `04_triggers_views.sql` |
 | — | NFR-MNT-01..NFR-MNT-04, NFR-USE-01, NFR-USE-02 | — | — | SQLStyle.guide, đặt tên ràng buộc, thứ tự nạp tập tin, thông báo `RAISE EXCEPTION` | Rà soát tài liệu; 05/09/06 chạy được từ đầu đến cuối |
 
-**Các yêu cầu chưa thực thi hoặc chỉ thực thi một phần:** NFR-SEC-03 (mã hóa khi lưu trữ) và NFR-AVL-01 (sao lưu) là yêu cầu triển khai, không có trong bản Docker demo; FR-30/BR-23 phụ thuộc ứng dụng đặt `app.current_user_id`; FR-13/BR-24 cần bộ lập lịch ngoài (đã có container `scheduler` trong demo; production dùng `pg_cron`/cron). Chi tiết xem [business_rules.md](business_rules.md), mục "Tổng hợp mức độ thực thi".
+**Các yêu cầu chưa thực thi hoặc chỉ thực thi một phần:** NFR-SEC-03 (mã hóa khi lưu trữ) và NFR-AVL-01 (sao lưu) là yêu cầu triển khai, không có trong bản Docker demo; BR-10 và BR-23 được thực thi đầy đủ ở CSDL, lưu ý còn lại là superuser vốn là gốc tin cậy (bảo trì `billing_log` phải tường minh) và mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`; FR-13/BR-24 cần bộ lập lịch ngoài (đã có container `scheduler` trong demo; production dùng `pg_cron`/cron). Chi tiết xem [business_rules.md](business_rules.md), mục "Tổng hợp mức độ thực thi".

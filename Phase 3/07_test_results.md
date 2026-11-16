@@ -1,8 +1,10 @@
 # Kết quả Kiểm thử Cơ sở Dữ liệu (Mục 4.2, 5.1 & 5.2 của Báo cáo)
 
 > **Môi trường kiểm thử:** PostgreSQL 16 (image `postgres:16-alpine`), nạp lần lượt `01_schema_ddl.sql` → `02_mock_data/01..08` → `04_triggers_views.sql` → `08_rbac_security.sql` (khi kiểm thử phân quyền).
-> **Ngày chạy:** 15/11/2026.
-> **Script:** [`05_constraint_test_cases.sql`](05_constraint_test_cases.sql) (mục 5.1, 105 test), [`06_performance_test_cases.sql`](06_performance_test_cases.sql) (mục 4.2, 8 test) và [`09_rbac_test_cases.sql`](09_rbac_test_cases.sql) (mục 5.2, 48 test). Cả ba script đều được bọc trong `BEGIN ... ROLLBACK` nên **không làm thay đổi dữ liệu mẫu**.
+> **Ngày chạy:** 16/11/2026.
+> **Script:** [`05_constraint_test_cases.sql`](05_constraint_test_cases.sql) (mục 5.1, 109 test), [`06_performance_test_cases.sql`](06_performance_test_cases.sql) (mục 4.2, 8 test) và [`09_rbac_test_cases.sql`](09_rbac_test_cases.sql) (mục 5.2, 61 test). Cả ba script đều được bọc trong `BEGIN ... ROLLBACK` nên **không làm thay đổi dữ liệu mẫu**.
+> **Người thực hiện (BR-23):** mọi thao tác ghi vào 5 bảng giao dịch cần `app.current_user_id`; các script test tự đặt biến này ở đầu tập tin. Khi chạy SQL thủ công, hãy `SET app.current_user_id = '<user_id>';` trước, nếu không CSDL từ chối (lỗi `P0001`, `BR-23`) theo thiết kế.
+> **Nạp lại trên CSDL đã có (BR-10):** Bản nạp lại (01 `DROP` `billing_log`, 04 `DROP`/`CREATE` trigger và hàm bất biến) bị event trigger BR-10 chặn, kể cả với superuser. Cách đơn giản nhất là tạo CSDL mới (`docker compose down -v` rồi `docker compose up --build`). Nếu muốn nạp lại tại chỗ, superuser đặt lối thoát trong cùng phiên `psql` (`SET app.allow_billing_maintenance = 'on';` trước khi `\i` các tập tin) hoặc tắt event trigger bằng hai lệnh riêng `ALTER EVENT TRIGGER evt_protect_billing_log DISABLE;` và `ALTER EVENT TRIGGER evt_protect_billing_log_drop DISABLE;`, sau đó nạp lại 08 để tạo lại chúng. Script 06 tự đặt lối thoát này cho bước nạp dữ liệu hàng loạt.
 > **Dữ liệu mẫu tương đối theo ngày nạp:** các mốc thời gian trong `02_mock_data` được tính từ `CURRENT_DATE`/`CURRENT_TIMESTAMP` lúc nạp, nên các truy vấn "tháng này/quý này" luôn có dữ liệu. Các bảng kết quả dưới đây được sinh trực tiếp từ đầu ra `psql` thực tế; giá trị tuyệt đối của ngày giờ trong thông báo lỗi sẽ thay đổi theo ngày chạy, còn mã test, SQLSTATE và kết quả thì không.
 
 Cách chạy lại (sau khi CSDL đã được khởi tạo bằng các tập tin nạp ở trên):
@@ -39,15 +41,15 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 | `23P01` | exclusion_violation | `EXCLUDE USING gist` (chống trùng khoảng thời gian) |
 | `P0001` | raise_exception | Trigger PL/pgSQL chủ động `RAISE EXCEPTION` |
 
-### Kết quả: 105/105 test PASS (71 negative TC + 34 positive TP)
+### Kết quả: 109/109 test PASS (74 negative TC + 35 positive TP)
 
 | Mã | Quy tắc | Kịch bản | SQLSTATE mong đợi | SQLSTATE thực tế | Kết quả | Thông báo của CSDL |
 |---|---|---|---|---|---|---|
 | TC-01 | BR-02 | Tạo tài khoản trùng email đã tồn tại (uq_user_account_email) | 23505 | 23505 | PASS | duplicate key value violates unique constraint "uq_user_account_email" |
 | TC-02 | BR-02 | Tạo tài khoản trùng số điện thoại đã tồn tại (uq_user_account_phone) | 23505 | 23505 | PASS | duplicate key value violates unique constraint "uq_user_account_phone" |
 | TC-03 | BR-02 | Tạo tài khoản thiếu email (NOT NULL) | 23502 | 23502 | PASS | null value in column "email" of relation "user_account" violates not-null constraint |
-| TC-04 | BR-03 | Đăng ký hồ sơ hội viên cho người dưới 12 tuổi (trg_check_member_dob) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-03: Hội viên phải đủ 12 tuổi trở lên (Ngày sinh: 2021-11-15) |
-| TC-05 | BR-03 | Sửa ngày sinh của hội viên hiện có thành dưới 12 tuổi (trg_check_user_dob_for_member) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-03: Hội viên phải đủ 12 tuổi trở lên (Ngày sinh: 2021-11-15) |
+| TC-04 | BR-03 | Đăng ký hồ sơ hội viên cho người dưới 12 tuổi (trg_check_member_dob) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-03: Hội viên phải đủ 12 tuổi trở lên (Ngày sinh: 2021-11-16) |
+| TC-05 | BR-03 | Sửa ngày sinh của hội viên hiện có thành dưới 12 tuổi (trg_check_user_dob_for_member) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-03: Hội viên phải đủ 12 tuổi trở lên (Ngày sinh: 2021-11-16) |
 | TC-06 | BR-22 | Gán trạng thái tài khoản ngoài miền giá trị (chk_user_account_status) | 23514 | 23514 | PASS | new row for relation "user_account" violates check constraint "chk_user_account_status" |
 | TC-07 | BR-11 | Điểm đánh giá HLV vượt quá 5.00 (chk_trainer_rating) | 23514 | 23514 | PASS | new row for relation "trainer_profile" violates check constraint "chk_trainer_rating" |
 | TC-08 | BR-22 | Gán cùng một vai trò hai lần cho một người dùng (pk_user_role) | 23505 | 23505 | PASS | duplicate key value violates unique constraint "pk_user_role" |
@@ -97,8 +99,8 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 | TP-09 | BR-05 | Hợp đồng cũ chuyển Expired thì hội viên được kích hoạt hợp đồng mới (chỉ còn 1 Active) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-10 | BR-08 | Hóa đơn Failed không chiếm chu kỳ: thanh toán lại (Completed) cùng chu kỳ được chấp nhận | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-11 | BR-08 | INSERT hóa đơn không nêu chu kỳ: trg_fill_billing_period_start điền ngày bắt đầu hợp đồng | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
-| TC-44 | BR-10 | Sửa số tiền hóa đơn Completed có sẵn (trg_billing_immutable_update) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Hóa đơn INV-20261005-001 đã Completed là dữ liệu bất biến; chỉ được chuyển sang Refunded và không được đổi cột nào khác |
-| TC-45 | BR-10 | Xóa hóa đơn Completed có sẵn (trg_billing_immutable_delete) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được xóa hóa đơn INV-20261005-001 (nhật ký thanh toán bất biến); hãy chuyển sang Refunded nếu cần hoàn tiền |
+| TC-44 | BR-10 | Sửa số tiền hóa đơn Completed có sẵn (trg_billing_immutable_update) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Hóa đơn INV-20261006-001 đã Completed là dữ liệu bất biến; chỉ được chuyển sang Refunded và không được đổi cột nào khác |
+| TC-45 | BR-10 | Xóa hóa đơn Completed có sẵn (trg_billing_immutable_delete) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được xóa hóa đơn INV-20261006-001 (nhật ký thanh toán bất biến); hãy chuyển sang Refunded nếu cần hoàn tiền |
 | TC-46 | BR-10 | TRUNCATE bảng billing_log (trg_billing_immutable_truncate) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được TRUNCATE bảng billing_log (nhật ký thanh toán bất biến) |
 | TC-47 | BR-10 | Đổi hóa đơn Completed sang Failed - chỉ được sang Refunded (trg_billing_immutable_update) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Hóa đơn INV-T05-43-11 đã Completed là dữ liệu bất biến; chỉ được chuyển sang Refunded và không được đổi cột nào khác |
 | TC-48 | BR-10 | Hóa đơn Pending bị đổi mã invoice_no (trg_billing_immutable_update) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Hóa đơn INV-T05-44-12 đang Pending chỉ được chuyển sang Completed/Failed và không được đổi mã hóa đơn, hợp đồng, chu kỳ |
@@ -106,31 +108,35 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 | TP-12 | BR-10 | Phiên kiểm thử chạy bằng superuser (chứng minh BR-10 không dựa vào phân quyền) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-13 | BR-10 | Hóa đơn Completed chuyển sang Refunded được phép (hoàn tiền) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-14 | BR-10 | Hóa đơn Pending chuyển sang Completed được phép và kích hoạt hợp đồng Pending | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
-| TC-50 | BR-12 | HLV đã có ca PT, xếp thêm lớp nhóm trùng giờ cho chính HLV đó (trg_check_class_schedule_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-12: HLV ID: 5 đã có ca PT #49 trùng khung giờ 2026-11-26 21:30:00 -> 2026-11-26 22:30:00 của lớp "T05-HLV-TRUNG-PT" |
-| TC-51 | BR-12 | HLV đang đứng lớp nhóm, nhận thêm ca PT trùng giờ (trg_check_pt_booking_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-12: HLV ID: 5 đã đứng lớp ID: 31 trùng khung giờ 2026-11-27 21:30:00 -> 2026-11-27 22:30:00 của ca PT |
-| TC-52 | BR-16 | Hội viên đã đăng ký lớp nhóm, đặt thêm ca PT trùng giờ lớp đó (trg_check_pt_booking_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã đăng ký lớp ID: 32 trùng khung giờ 2026-11-28 21:30:00 -> 2026-11-28 22:30:00 của ca PT |
-| TC-53 | BR-16 | Hội viên đã có ca PT, đăng ký lớp nhóm trùng giờ (trg_check_class_enrollment_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã có ca PT #52 trùng khung giờ lớp ID: 33 (2026-11-29 21:30:00 -> 2026-11-29 22:30:00) |
-| TC-54 | BR-16 | Hội viên đăng ký 2 lớp nhóm trùng giờ (trg_check_class_enrollment_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã đăng ký lớp ID: 34 trùng khung giờ lớp ID: 35 (2026-11-30 21:30:00 -> 2026-11-30 22:30:00) |
+| TC-50 | BR-12 | HLV đã có ca PT, xếp thêm lớp nhóm trùng giờ cho chính HLV đó (trg_check_class_schedule_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-12: HLV ID: 5 đã có ca PT #49 trùng khung giờ 2026-11-27 21:30:00 -> 2026-11-27 22:30:00 của lớp "T05-HLV-TRUNG-PT" |
+| TC-51 | BR-12 | HLV đang đứng lớp nhóm, nhận thêm ca PT trùng giờ (trg_check_pt_booking_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-12: HLV ID: 5 đã đứng lớp ID: 31 trùng khung giờ 2026-11-28 21:30:00 -> 2026-11-28 22:30:00 của ca PT |
+| TC-52 | BR-16 | Hội viên đã đăng ký lớp nhóm, đặt thêm ca PT trùng giờ lớp đó (trg_check_pt_booking_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã đăng ký lớp ID: 32 trùng khung giờ 2026-11-29 21:30:00 -> 2026-11-29 22:30:00 của ca PT |
+| TC-53 | BR-16 | Hội viên đã có ca PT, đăng ký lớp nhóm trùng giờ (trg_check_class_enrollment_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã có ca PT #52 trùng khung giờ lớp ID: 33 (2026-11-30 21:30:00 -> 2026-11-30 22:30:00) |
+| TC-54 | BR-16 | Hội viên đăng ký 2 lớp nhóm trùng giờ (trg_check_class_enrollment_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã đăng ký lớp ID: 34 trùng khung giờ lớp ID: 35 (2026-12-01 21:30:00 -> 2026-12-01 22:30:00) |
 | TC-55 | BR-16 | Đổi giờ lớp đã có người đăng ký sang giờ trùng ca PT của hội viên đó (trg_check_class_schedule_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Đổi giờ lớp ID: 36 làm hội viên ID: 11 bị trùng lịch với ca PT/lớp khác của họ |
-| TC-68 | BR-16 | Đăng ký lần 2 cùng lớp khi đang Enrolled bị chặn bởi trigger BR-16 (trg_check_class_enrollment_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã đăng ký lớp ID: 37 trùng khung giờ lớp ID: 37 (2026-12-02 21:00:00 -> 2026-12-02 22:00:00) |
+| TC-68 | BR-16 | Đăng ký lần 2 cùng lớp khi đang Enrolled bị chặn bởi trigger BR-16 (trg_check_class_enrollment_conflicts) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-16: Hội viên ID: 11 đã đăng ký lớp ID: 37 trùng khung giờ lớp ID: 37 (2026-12-03 21:00:00 -> 2026-12-03 22:00:00) |
 | TP-15 | BR-16 | Lớp nhóm và ca PT nối tiếp nhau (22:00 kết thúc, 22:00 bắt đầu) của cùng hội viên được chấp nhận | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TC-56 | BR-18 | Đặt ca PT bằng hợp đồng chưa Active (Pending) (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Hợp đồng ID: 48 đang ở trạng thái Pending (không phải Active) nên không thể đặt ca PT |
-| TC-57 | BR-18 | Đặt ca PT sau ngày hết hạn hợp đồng (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Giờ tập 2027-06-03 21:00:00 nằm ngoài thời hạn hợp đồng ID: 1 (2026-10-05 08:00:00 -> 2027-01-03 22:00:00) |
-| TC-58 | BR-18 | Đặt ca PT trước ngày bắt đầu hợp đồng (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Giờ tập 2025-10-11 21:00:00 nằm ngoài thời hạn hợp đồng ID: 1 (2026-10-05 08:00:00 -> 2027-01-03 22:00:00) |
+| TC-57 | BR-18 | Đặt ca PT sau ngày hết hạn hợp đồng (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Giờ tập 2027-06-04 21:00:00 nằm ngoài thời hạn hợp đồng ID: 1 (2026-10-06 08:00:00 -> 2027-01-04 22:00:00) |
+| TC-58 | BR-18 | Đặt ca PT trước ngày bắt đầu hợp đồng (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Giờ tập 2025-10-12 21:00:00 nằm ngoài thời hạn hợp đồng ID: 1 (2026-10-06 08:00:00 -> 2027-01-04 22:00:00) |
 | TC-59 | BR-18 | Số ca PT Scheduled vượt số buổi còn lại của hợp đồng (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Hợp đồng ID: 1 còn 3 buổi PT nhưng đã có 3 ca đang chờ; không thể đặt thêm |
 | TC-60 | BR-18 | Đặt ca PT bằng hợp đồng gói không có buổi PT (hợp đồng ID 2, 0 buổi) (trg_check_pt_booking_creation) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-18: Hợp đồng ID: 2 còn 0 buổi PT nhưng đã có 0 ca đang chờ; không thể đặt thêm |
 | TP-16 | BR-18 | Còn đúng 1 buổi chưa đặt thì được đặt thêm 1 ca Scheduled | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TC-61 | BR-21 | Một thiết bị bị giữ chỗ trùng giờ cho 2 ca PT khác nhau (ex_reservation_equipment_no_overlap) | 23P01 | 23P01 | PASS | conflicting key value violates exclusion constraint "ex_reservation_equipment_no_overlap" |
-| TC-62 | BR-21 | Giữ chỗ thiết bị trong lúc có ca bảo trì In_Progress chưa kết thúc (trg_check_reservation_window) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-21: Thiết bị ID: 2 đang trong ca bảo trì #16 (In_Progress) trùng khung giờ giữ chỗ 2026-12-07 21:00:00 -> 2026-12-07 22:00: |
-| TC-63 | BR-21 | Giờ giữ chỗ thiết bị vượt ra ngoài khung giờ của ca PT gắn kèm (trg_check_reservation_window) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-21: Giờ giữ chỗ thiết bị 2026-12-08 20:30:00 -> 2026-12-08 22:00:00 vượt ra ngoài khung giờ của ca/lớp gắn kèm (2026-12-08  |
-| TC-64 | BR-21 | Giờ giữ chỗ thiết bị vượt ra ngoài khung giờ của lớp học gắn kèm (trg_check_reservation_window) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-21: Giờ giữ chỗ thiết bị 2026-12-09 21:00:00 -> 2026-12-09 22:30:00 vượt ra ngoài khung giờ của ca/lớp gắn kèm (2026-12-09  |
+| TC-62 | BR-21 | Giữ chỗ thiết bị trong lúc có ca bảo trì In_Progress chưa kết thúc (trg_check_reservation_window) | 23P01 | 23P01 | PASS | Lỗi nghiệp vụ BR-21: Thiết bị ID: 2 đang trong ca bảo trì #16 (In_Progress) trùng khung giờ giữ chỗ 2026-12-08 21:00:00 -> 2026-12-08 22:00: |
+| TC-63 | BR-21 | Giờ giữ chỗ thiết bị vượt ra ngoài khung giờ của ca PT gắn kèm (trg_check_reservation_window) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-21: Giờ giữ chỗ thiết bị 2026-12-09 20:30:00 -> 2026-12-09 22:00:00 vượt ra ngoài khung giờ của ca/lớp gắn kèm (2026-12-09  |
+| TC-64 | BR-21 | Giờ giữ chỗ thiết bị vượt ra ngoài khung giờ của lớp học gắn kèm (trg_check_reservation_window) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-21: Giờ giữ chỗ thiết bị 2026-12-10 21:00:00 -> 2026-12-10 22:30:00 vượt ra ngoài khung giờ của ca/lớp gắn kèm (2026-12-10  |
 | TP-17 | BR-21 | Giữ chỗ thiết bị nằm trọn trong khung giờ ca PT được chấp nhận | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-18 | BR-21 | Lượt giữ chỗ đã Cancelled không chiếm thiết bị: giữ chỗ mới cùng giờ được chấp nhận | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-19 | BR-21 | Ca bảo trì đã Completed không chặn giữ chỗ thiết bị | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TC-65 | BR-23 | Người thực hiện không tồn tại trong user_account (fk_booking_created_by) | 23503 | 23503 | PASS | insert or update on table "pt_booking" violates foreign key constraint "fk_booking_created_by" |
 | TP-20 | BR-23 | created_by_user_id tự điền từ SET LOCAL app.current_user_id cho 5 bảng giao dịch | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-21 | BR-23 | Giá trị created_by_user_id nêu rõ trong INSERT không bị trigger ghi đè | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
-| TP-22 | BR-23 | Chưa đặt app.current_user_id (tác vụ hệ thống/cron) thì created_by_user_id giữ NULL | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| TC-72 | BR-23 | INSERT khi chưa đặt app.current_user_id (và không nêu created_by_user_id) bị chặn | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-23: Thao tác tạo dữ liệu trên pt_booking phải gắn với người dùng thực hiện (đặt app.current_user_id hoặc nêu created_by_use |
+| TC-73 | BR-23 | UPDATE khi chưa đặt app.current_user_id bị chặn (không có người sửa để ghi updated_by_user_id) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-23: Thao tác sửa dữ liệu trên class_schedule phải gắn với người dùng thực hiện (chưa đặt app.current_user_id) |
+| TC-74 | BR-23 | Không được đổi created_by_user_id sau khi đã ghi (vết người tạo bất biến) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-23: Không được đổi created_by_user_id của class_schedule |
+| TP-22 | BR-23 | UPDATE tự ghi updated_by_user_id (từ biến phiên, không tin giá trị truyền vào) và updated_at | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| TP-35 | BR-23 | UPDATE nội bộ do trigger (BR-07 tự kích hoạt hợp đồng khi thanh toán) ghi người thao tác hiện tại vào updated_by_user_id | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TC-66 | BR-24 | Gọi thủ tục với số ngày ân hạn âm (sp_process_subscription_renewals) | P0001 | P0001 | PASS | p_grace_days phải >= 0 (nhận được: -1) |
 | TP-23 | BR-24 | Quá hạn: HĐ không tự gia hạn -> Expired; HĐ tự gia hạn -> hóa đơn Pending kỳ kế tiếp, vẫn Active trong ân hạn | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-24 | BR-24 | Gọi thủ tục nhiều lần trong ngày không phát sinh thêm hóa đơn gia hạn (idempotent) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
@@ -149,19 +155,19 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 | TP-33 | BR-19 | Hoàn tất ca bảo trì duy nhất tự đưa thiết bị về Operational (trg_finish_equipment_maintenance) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-34 | BR-19 | Còn ca In_Progress khác thì hoàn tất 1 ca chưa đưa thiết bị về Operational; hoàn tất nốt mới về Operational | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 
-Tổng: 105 test, đạt 105, không đạt 0.
+Tổng: 109 test, đạt 109, không đạt 0.
 
 ### Mức độ thực thi các quy tắc nghiệp vụ
 
-Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu với mục "Tổng hợp mức độ thực thi" trong `Phase 1/business_rules.md`; các quy tắc **thực thi một phần** nêu rõ giới hạn còn lại.
+Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu với mục "Tổng hợp mức độ thực thi" trong `Phase 1/business_rules.md`; tất cả quy tắc đều được thực thi ở CSDL; các lưu ý còn lại nêu ở cột cuối.
 
 | Quy tắc | Mức độ | Giới hạn / điều kiện còn lại |
 |---|---|---|
 | BR-01 … BR-09, BR-11 … BR-21, BR-25, BR-26 | Đầy đủ ở CSDL | Thực thi bằng `CHECK`/`UNIQUE`/`EXCLUDE`/`FOREIGN KEY` và trigger; có test TC/TP tương ứng ở bảng trên. |
-| BR-10 (hóa đơn bất biến) | Một phần | Trigger `trg_billing_immutable_update/_delete/_truncate` chặn mọi người dùng, cộng thêm lớp phân quyền (mục 5.2). Chủ sở hữu bảng vẫn có thể chủ động `ALTER TABLE ... DISABLE TRIGGER` (thao tác DDL để lại dấu vết). |
+| BR-10 (hóa đơn bất biến) | Đầy đủ ở CSDL (bốn lớp) | (1) Trigger `trg_billing_immutable_update/_delete/_truncate` chặn mọi role (TC-44..TC-49, TP-12..TP-14); (2) chỉ cấp `SELECT, INSERT` trên `billing_log` (AD-01..AD-03); (3) mọi đối tượng thuộc role `NOLOGIN` `gym_owner` nên không tài khoản đăng nhập nào `ALTER`/`DROP` được (EV-07..EV-12); (4) event trigger `evt_protect_billing_log`/`_drop` chặn cả superuser (EV-01..EV-05, EV-13). Giới hạn cố hữu: superuser là gốc tin cậy, vẫn bảo trì có chủ đích được bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'` (EV-06); thao tác phải tường minh. |
 | BR-19 (chặn khóa bảo trì) | Đầy đủ ở CSDL | Hai chiều: chặn xếp lịch mới vào phòng/thiết bị `Under_Maintenance` (TC-23, TC-34) và chặn chuyển phòng/thiết bị sang `Under_Maintenance` khi còn lớp / giữ chỗ `Reserved` tương lai (TC-69..TC-71); trạng thái thiết bị tự đồng bộ với `maintenance_log` (TP-31..TP-34; kỹ thuật viên chạy được trọn quy trình dưới role hạn chế, EA-03). |
 | BR-22 (RBAC) | Đầy đủ ở mức CSDL | Bảng `role_permission` (dữ liệu ma trận cho ứng dụng) và các lệnh `GRANT` trong `08_rbac_security.sql` được viết tay tương ứng, **không tự đồng bộ**; khi đổi một nơi phải cập nhật nơi còn lại. |
-| BR-23 (vết người thực hiện) | Một phần | Phụ thuộc ứng dụng đặt biến phiên `app.current_user_id`; cột `created_by_user_id` cho phép `NULL`; chỉ ghi lúc `INSERT`, không ghi vết `UPDATE`. |
+| BR-23 (vết người thực hiện) | Đầy đủ ở CSDL | `created_by_user_id NOT NULL`, `updated_by_user_id`, `updated_at` và khóa ngoại trên 5 bảng; `trg_fill_created_by` từ chối `INSERT` khi chưa đặt `app.current_user_id` (TC-72), `trg_set_updated_by` ghi người sửa (TP-22, TP-35), từ chối `UPDATE` khi chưa đặt biến (TC-73) và cấm đổi `created_by_user_id` (TC-74). Mọi chương trình ghi dữ liệu phải đặt `app.current_user_id` (ứng dụng, bộ lập lịch qua `SCHEDULER_ACTOR_USER_ID`, script test); thủ công cần `SET app.current_user_id = '<id>'`. |
 | BR-24 (tự động gia hạn/ân hạn) | Đầy đủ khi có bộ lập lịch ngoài | Logic nằm trong thủ tục `sp_process_subscription_renewals` (kiểm thử với ngày giả, TC-66, TP-23..TP-26). Docker demo có service `scheduler` (`fitzone_renewal_scheduler`) gọi thủ tục khi khởi động và mỗi `RENEWAL_INTERVAL_SECONDS` giây; production dùng `pg_cron`/cron. Nếu không có bộ lập lịch nào chạy thì quy tắc theo thời gian không tự kích hoạt. |
 
 ---
@@ -175,7 +181,7 @@ Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu v�
 ### Phương pháp
 
 1. Dữ liệu mẫu gốc chỉ có ~700 bản ghi, quá nhỏ để bộ tối ưu hóa chọn dùng chỉ mục. Script sinh tạm **100.000 tài khoản, 200.000 hóa đơn và 120.000 ca PT** bằng `generate_series()`, sau đó chạy `ANALYZE`.
-2. Các trigger nghiệp vụ của người dùng trên `billing_log` và `pt_booking` (BR-08, BR-18, kiểm tra chồng lấn chéo bảng, điền `created_by_user_id`...) sẽ từ chối dữ liệu tổng hợp vì không gắn với hợp đồng/hội viên thực. Bài kiểm thử chỉ đo hiệu năng **đọc**, nên `ALTER TABLE ... DISABLE TRIGGER USER` chỉ được dùng **trong lúc nạp hàng loạt, bên trong giao dịch sẽ bị `ROLLBACK`**, và trigger được bật lại trước khi đo. Mọi ràng buộc `CHECK`/`UNIQUE`/`EXCLUDE`/`FOREIGN KEY` vẫn có hiệu lực suốt quá trình nạp.
+2. Các trigger nghiệp vụ của người dùng trên `billing_log` và `pt_booking` (BR-08, BR-18, kiểm tra chồng lấn chéo bảng, điền `created_by_user_id`...) sẽ từ chối dữ liệu tổng hợp vì không gắn với hợp đồng/hội viên thực. Bài kiểm thử chỉ đo hiệu năng **đọc**, nên `ALTER TABLE ... DISABLE TRIGGER USER` chỉ được dùng **trong lúc nạp hàng loạt, bên trong giao dịch sẽ bị `ROLLBACK`**, và trigger được bật lại trước khi đo. Vì event trigger BR-10 chặn `ALTER TABLE ... billing_log`, script (chạy bằng superuser) trước đó đặt lối thoát bảo trì `SET LOCAL app.allow_billing_maintenance = 'on'` (chỉ hiệu lực trong giao dịch này); các bản ghi tổng hợp nêu rõ `created_by_user_id` vì cột `NOT NULL` vẫn có hiệu lực. Mọi ràng buộc `CHECK`/`UNIQUE`/`EXCLUDE`/`FOREIGN KEY` vẫn có hiệu lực suốt quá trình nạp.
 3. Mỗi truy vấn được chạy `EXPLAIN (ANALYZE)` hai lần:
    - **(a) Có chỉ mục:** bộ tối ưu hóa chọn kế hoạch thực thi bình thường.
    - **(b) Không chỉ mục:** tắt `enable_indexscan`, `enable_bitmapscan`, `enable_indexonlyscan` để mô phỏng bảng không có chỉ mục (buộc phải `Seq Scan`).
@@ -188,41 +194,40 @@ Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu v�
 
 | Mã | Truy vấn | Kế hoạch (a) có chỉ mục | (a) ms | Kế hoạch (b) không chỉ mục | (b) ms | Nhanh hơn | < 200 ms |
 |---|---|---|---|---|---|---|---|
-| PT-01 | Tra cứu tài khoản theo email khi đăng nhập | Index Scan (uq_user_account_email) | 0.055 | Seq Scan (user_account) | 13.801 | 250.9x | PASS |
-| PT-02 | Tra cứu tài khoản theo số điện thoại | Index Scan (uq_user_account_phone) | 0.041 | Seq Scan (user_account) | 13.544 | 330.3x | PASS |
-| PT-03 | Tổng doanh thu theo phương thức thanh toán trong 1 tuần | Bitmap Index Scan (idx_billing_log_payment_date) | 0.854 | Seq Scan (billing_log) | 33.432 | 39.1x | PASS |
-| PT-04 | Lịch sử 20 hóa đơn gần nhất của một hợp đồng | Index Scan (idx_billing_log_subscription_date) | 0.059 | Seq Scan (billing_log) | 26.125 | 442.8x | PASS |
-| PT-05 | Tra cứu một hóa đơn theo invoice_no | Index Scan (uq_billing_invoice_no) | 0.041 | Seq Scan (billing_log) | 26.123 | 637.1x | PASS |
-| PT-06 | Lịch ca PT trong một ngày của một HLV | Index Scan (idx_pt_booking_dates) | 0.059 | Seq Scan (pt_booking) | 13.313 | 225.6x | PASS |
-| PT-07 | Kiểm tra trùng lịch HLV bằng toán tử chồng lấn khoảng thời gian (&&) | Index Scan (ex_pt_trainer_no_overlap) | 0.056 | Seq Scan (pt_booking) | 14.589 | 260.5x | PASS |
-| PT-08 | Truy vấn phức hợp Q1: doanh thu từng gói tập trong một quý (JOIN 3 bảng) | Bitmap Index Scan (idx_billing_log_payment_date) | 13.097 | Seq Scan (billing_log) | 41.645 | 3.2x | PASS |
+| PT-01 | Tra cứu tài khoản theo email khi đăng nhập | Index Scan (uq_user_account_email) | 0.037 | Seq Scan (user_account) | 14.119 | 381.6x | PASS |
+| PT-02 | Tra cứu tài khoản theo số điện thoại | Index Scan (uq_user_account_phone) | 0.041 | Seq Scan (user_account) | 14.055 | 342.8x | PASS |
+| PT-03 | Tổng doanh thu theo phương thức thanh toán trong 1 tuần | Bitmap Index Scan (idx_billing_log_payment_date) | 0.842 | Seq Scan (billing_log) | 33.374 | 39.6x | PASS |
+| PT-04 | Lịch sử 20 hóa đơn gần nhất của một hợp đồng | Index Scan (idx_billing_log_subscription_date) | 0.058 | Seq Scan (billing_log) | 18.321 | 315.9x | PASS |
+| PT-05 | Tra cứu một hóa đơn theo invoice_no | Index Scan (uq_billing_invoice_no) | 0.041 | Seq Scan (billing_log) | 26.713 | 651.5x | PASS |
+| PT-06 | Lịch ca PT trong một ngày của một HLV | Index Scan (idx_pt_booking_dates) | 0.058 | Seq Scan (pt_booking) | 12.300 | 212.1x | PASS |
+| PT-07 | Kiểm tra trùng lịch HLV bằng toán tử chồng lấn khoảng thời gian (&&) | Index Scan (ex_pt_trainer_no_overlap) | 0.055 | Seq Scan (pt_booking) | 13.619 | 247.6x | PASS |
+| PT-08 | Truy vấn phức hợp Q1: doanh thu từng gói tập trong một quý (JOIN 3 bảng) | Bitmap Index Scan (idx_billing_log_payment_date) | 13.652 | Seq Scan (billing_log) | 41.440 | 3.0x | PASS |
 
 ### Kế hoạch thực thi minh họa
 
 Kế hoạch chi tiết PT-01:
 ```
- Index Scan using uq_user_account_email on user_account (actual time=0.044..0.046 rows=1 loops=1)
+ Index Scan using uq_user_account_email on user_account (actual time=0.047..0.049 rows=1 loops=1)
    Index Cond: ((email)::text = 'perf_user_77777@perf.test'::text)
- Planning Time: 0.135 ms
- Execution Time: 0.074 ms
+ Planning Time: 0.075 ms
+ Execution Time: 0.073 ms
 ```
-
 Kế hoạch chi tiết PT-07:
 ```
- Result (actual time=0.069..0.069 rows=1 loops=1)
+ Result (actual time=0.070..0.071 rows=1 loops=1)
    InitPlan 1 (returns $0)
-     ->  Index Scan using ex_pt_trainer_no_overlap on pt_booking (actual time=0.067..0.068 rows=1 loops=1)
+     ->  Index Scan using ex_pt_trainer_no_overlap on pt_booking (actual time=0.069..0.069 rows=1 loops=1)
            Index Cond: ((trainer_user_id = 8) AND (tsrange(start_time, end_time, '[)'::text) && '["2032-03-15 10:30:00","2032-03-15 11:30:00")'::tsrange))
- Planning Time: 0.169 ms
- Execution Time: 0.096 ms
+ Planning Time: 0.139 ms
+ Execution Time: 0.091 ms
 ```
 
 ### Nhận xét
 
-- Các truy vấn tra cứu điểm (PT-01, 02, 04, 05, 06, 07) đều dùng `Index Scan` và chạy dưới **0,1 ms**, nhanh hơn quét toàn bảng từ 225 đến 637 lần (xem cột "Nhanh hơn").
+- Các truy vấn tra cứu điểm (PT-01, 02, 04, 05, 06, 07) đều dùng `Index Scan` và chạy dưới **0,1 ms**, nhanh hơn quét toàn bảng từ 212 đến 652 lần (xem cột "Nhanh hơn").
 - **PT-04:** chỉ mục ghép `idx_billing_log_subscription_date (subscription_id, payment_date DESC)` đã được tạo trong `01_schema_ddl.sql`; bộ tối ưu hóa dùng đúng chỉ mục này, thay cho cách quét ngược `idx_billing_log_payment_date` rồi lọc như khi chưa có chỉ mục ghép.
 - **PT-07:** chỉ mục GiST của ràng buộc `EXCLUDE` vừa bảo đảm toàn vẹn (BR-12) vừa tăng tốc truy vấn tìm khoảng thời gian chồng lấn.
-- **PT-03 và PT-08:** mức cải thiện thấp hơn (39× và 3,2×) vì điều kiện lọc theo thời gian chọn ra một phần lớn của `billing_log`, nên phần lớn thời gian của PT-08 nằm ở phép `JOIN` và `GROUP BY` chứ không ở bước lọc.
+- **PT-03 và PT-08:** mức cải thiện thấp hơn (40× và 3,0×) vì điều kiện lọc theo thời gian chọn ra một phần lớn của `billing_log`, nên phần lớn thời gian của PT-08 nằm ở phép `JOIN` và `GROUP BY` chứ không ở bước lọc.
 - Bước sinh 120.000 ca PT chiếm phần lớn thời gian chạy script vì mỗi dòng phải qua 2 ràng buộc `EXCLUDE`; đây cũng là chi phí ghi của cơ chế chống trùng lịch.
 
 ---
@@ -247,6 +252,8 @@ Script 08 chạy lại nhiều lần vẫn an toàn (idempotent): role là đố
 ### Thiết kế
 
 - Thu hồi mọi quyền của `PUBLIC` trên bảng, sequence và quyền `CREATE` trên schema `public` (nguyên tắc đặc quyền tối thiểu).
+- Mọi đối tượng ứng dụng (bảng, view, sequence, hàm, thủ tục) thuộc role `NOLOGIN` `gym_owner`: không phải superuser, không tài khoản đăng nhập nào là chủ sở hữu hay thành viên của role này (BR-10, lớp 3).
+- Event trigger `evt_protect_billing_log` (`ddl_command_end`) và `evt_protect_billing_log_drop` (`sql_drop`) chặn `ALTER TABLE`, `DROP TABLE`, `DROP`/`ALTER TRIGGER` trên `billing_log` và việc sửa/xóa các hàm trigger bất biến, kể cả với superuser (BR-10, lớp 4).
 - 5 **role nhóm** (`NOLOGIN`) mô phỏng 5 vai trò ứng dụng; 5 **tài khoản đăng nhập mẫu** (mật khẩu `demo_2026`, chỉ dùng trình diễn) thừa hưởng `INHERIT` từ role nhóm. Ứng dụng Streamlit đăng nhập bằng `gym_u_admin` (không phải superuser), nên phân quyền có hiệu lực thật với ứng dụng.
 - Cột nhạy cảm `user_account.password_hash` được bảo vệ bằng `GRANT` mức cột: không role nào được `SELECT`.
 - Quyền `USAGE` trên sequence chỉ cấp cho role có quyền `INSERT` vào bảng tương ứng.
@@ -305,9 +312,9 @@ Giải pháp: `ALTER FUNCTION ... SECURITY DEFINER SET search_path = public, pg_
 - **Nhóm RA/TA/EA/MA/AA/LA (Allowed):** thao tác hợp lệ phải được chấp nhận và dữ liệu dẫn xuất do trigger tạo ra phải đúng (câu kiểm tra chạy bằng superuser sau `RESET ROLE`).
 - Hàm hỗ trợ `pg_temp.expect_denied` / `pg_temp.expect_allowed` nhận tên role, chạy `SET LOCAL ROLE`; savepoint của khối `EXCEPTION` tự hoàn tác `SET LOCAL ROLE` nên bảng kết quả luôn được ghi bằng quyền ban đầu.
 - Mốc thời gian không viết cứng: dùng `pg_temp.night_slot(n)` (21:00 của hôm nay + n ngày) và `pg_temp.next_late_slot()` (khung đêm kế tiếp cách hiện tại hơn 30 phút và dưới 24 giờ, dùng cho kịch bản hủy muộn BR-25).
-- BR-10 có hai lớp bảo vệ (trigger bất biến và `GRANT`/`REVOKE`); các test AD-01..AD-03 kiểm tra lớp phân quyền, nơi lỗi `42501` xảy ra trước khi trigger được kích hoạt.
+- BR-10 có bốn lớp bảo vệ. Các test AD-01..AD-03 kiểm tra lớp phân quyền (lỗi `42501` xảy ra trước khi trigger được kích hoạt); nhóm **EV-01..EV-13** kiểm tra lớp sở hữu và event trigger: superuser bị chặn `P0001`, role ứng dụng bị chặn `42501`, lối thoát bảo trì có chủ đích hoạt động, mọi đối tượng thuộc `gym_owner` và event trigger đang bật.
 
-### Kết quả: 48/48 test PASS
+### Kết quả: 61/61 test PASS
 
 | Mã | Vai trò | Kịch bản | SQLSTATE mong đợi | SQLSTATE thực tế | Kết quả | Thông báo |
 |---|---|---|---|---|---|---|
@@ -359,11 +366,24 @@ Giải pháp: `ALTER FUNCTION ... SECURITY DEFINER SET search_path = public, pg_
 | AD-04 | gym_role_admin | Đọc cột password_hash của user_account | 42501 | 42501 | PASS | permission denied for table user_account |
 | LD-01 | gym_u_trainer | Tài khoản gym_u_trainer thừa hưởng: không đọc được billing_log | 42501 | 42501 | PASS | permission denied for table billing_log |
 | LA-01 | gym_u_tech | Tài khoản gym_u_tech thừa hưởng: đọc được equipment | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| EV-01 | superuser | Superuser ALTER TABLE billing_log DISABLE TRIGGER USER bị event trigger chặn | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được thay đổi (ALTER TABLE) public.billing_log (nhật ký thanh toán bất biến) |
+| EV-02 | superuser | Superuser DROP TRIGGER trg_billing_immutable_delete ON billing_log bị chặn | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được xóa trigger trg_billing_immutable_delete on public.billing_log (nhật ký thanh  |
+| EV-03 | superuser | Superuser DROP TABLE billing_log CASCADE bị chặn | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được xóa table public.billing_log (nhật ký thanh toán bất biến) |
+| EV-04 | superuser | Superuser thay ruột hàm trigger bất biến (CREATE OR REPLACE FUNCTION) bị chặn | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được thay đổi (CREATE FUNCTION) public.trg_fn_billing_immutable_delete() (nhật ký t |
+| EV-05 | superuser | Superuser đổi tên trigger bất biến (ALTER TRIGGER ... RENAME) bị chặn | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-10: Không được thay đổi (ALTER TRIGGER) trg_off on public.billing_log (nhật ký thanh toán bất |
+| EV-06 | superuser | Lối thoát bảo trì: superuser đặt app.allow_billing_maintenance = on rồi DISABLE/DROP TRIGGER được phép | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| EV-07 | gym_u_admin | gym_u_admin ALTER TABLE billing_log (kể cả khi đặt lối thoát) -> 42501 không phải chủ sở hữu | 42501 | 42501 | PASS | must be owner of table billing_log |
+| EV-08 | gym_role_admin | gym_role_admin DROP TRIGGER trg_billing_immutable_update ON billing_log -> 42501 | 42501 | 42501 | PASS | must be owner of relation billing_log |
+| EV-09 | gym_role_admin | gym_role_admin DROP TABLE billing_log -> 42501 | 42501 | 42501 | PASS | must be owner of table billing_log |
+| EV-10 | gym_role_admin | gym_role_admin ALTER TABLE billing_log DISABLE TRIGGER ALL -> 42501 | 42501 | 42501 | PASS | must be owner of table billing_log |
+| EV-11 | superuser | Mọi bảng, view, sequence, hàm, thủ tục trong schema public đều thuộc gym_owner | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| EV-12 | superuser | gym_owner NOLOGIN, không phải superuser; không gym_u_*/gym_role_* nào là thành viên của gym_owner | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| EV-13 | superuser | Event trigger evt_protect_billing_log (ddl_command_end) và _drop (sql_drop) đang bật | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 
-Tổng: 48 test, 48 PASS, 0 FAIL.
+Tổng: 61 test, 61 PASS, 0 FAIL.
 
 ### Lưu ý triển khai
 
-- Chủ sở hữu bảng và superuser luôn vượt qua `GRANT`/`REVOKE`; vì vậy BR-10 còn có lớp trigger (áp dụng cả với chủ sở hữu). Giới hạn duy nhất còn lại là chủ sở hữu có chủ đích `ALTER TABLE ... DISABLE TRIGGER`.
+- Chủ sở hữu bảng và superuser luôn vượt qua `GRANT`/`REVOKE`; vì vậy BR-10 còn có lớp trigger, lớp sở hữu bằng role `NOLOGIN` `gym_owner` và lớp event trigger. Giới hạn cố hữu duy nhất: superuser là gốc tin cậy của mọi DBMS nên vẫn có thể bảo trì có chủ đích bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`. Chạy lại `04_triggers_views.sql` khi event trigger đã tồn tại cũng cần lối thoát này.
 - Quyền chỉ áp dụng cho các bảng hiện có; bảng tạo mới sau này cần `GRANT` bổ sung (hoặc dùng `ALTER DEFAULT PRIVILEGES`).
 - Bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` của `08_rbac_security.sql` được duy trì thủ công song song, không tự đồng bộ (BR-22).

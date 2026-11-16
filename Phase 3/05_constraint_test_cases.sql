@@ -40,6 +40,10 @@ BEGIN;
 
 SET client_min_messages = WARNING;
 
+-- BR-23: mọi thao tác ghi vào 5 bảng giao dịch phải gắn với người thực hiện; phiên kiểm thử đóng vai Admin (user 1).
+-- Các test BR-23 ở PHẦN 12 tự đổi/xóa biến này để kiểm tra từng tình huống.
+SET LOCAL app.current_user_id = '1';
+
 -- ----------------------------------------------------------------------------
 -- BẢNG KẾT QUẢ & HÀM HỖ TRỢ (chỉ tồn tại trong phiên làm việc hiện tại)
 -- ----------------------------------------------------------------------------
@@ -1013,7 +1017,8 @@ SELECT pg_temp.expect_success('TP-19', 'BR-21', 'Ca bảo trì đã Completed kh
 
 -- ============================================================================
 -- PHẦN 12: BR-23 - VẾT TRUY XUẤT NGƯỜI THỰC HIỆN (trg_fill_created_by)
--- Ứng dụng đặt SET LOCAL app.current_user_id = '<user_id>' đầu giao dịch; trigger điền created_by_user_id.
+-- Ứng dụng đặt SET LOCAL app.current_user_id = '<user_id>' đầu giao dịch; trigger trg_fill_created_by điền
+-- created_by_user_id (NOT NULL) và trg_set_updated_by điền updated_by_user_id/updated_at; thiếu người thực hiện thì bị chặn.
 -- ============================================================================
 
 SELECT pg_temp.expect_error('TC-65', 'BR-23', 'Người thực hiện không tồn tại trong user_account (fk_booking_created_by)', '23503', ARRAY[
@@ -1044,12 +1049,37 @@ SELECT pg_temp.expect_success('TP-21', 'BR-23', 'Giá trị created_by_user_id n
       WHERE subscription_id = 1
         AND start_time = pg_temp.slot(2, 21)$q$);
 
-SELECT pg_temp.expect_success('TP-22', 'BR-23', 'Chưa đặt app.current_user_id (tác vụ hệ thống/cron) thì created_by_user_id giữ NULL', ARRAY[
+SELECT pg_temp.expect_error('TC-72', 'BR-23', 'INSERT khi chưa đặt app.current_user_id (và không nêu created_by_user_id) bị chặn', 'P0001', ARRAY[
+    $q$SELECT SET_CONFIG('app.current_user_id', '', TRUE)$q$,
     $q$SELECT pg_temp.mk_pt(11, 5, 1, pg_temp.slot(2, 21), pg_temp.slot(2, 22))$q$
-], $q$SELECT created_by_user_id IS NULL
-      FROM pt_booking
-      WHERE subscription_id = 1
-        AND start_time = pg_temp.slot(2, 21)$q$);
+], 'BR-23');
+
+SELECT pg_temp.expect_error('TC-73', 'BR-23', 'UPDATE khi chưa đặt app.current_user_id bị chặn (không có người sửa để ghi updated_by_user_id)', 'P0001', ARRAY[
+    $q$SELECT SET_CONFIG('app.current_user_id', '', TRUE)$q$,
+    $q$UPDATE class_schedule SET class_name = class_name || ' (sửa)' WHERE class_id = 2$q$
+], 'BR-23');
+
+SELECT pg_temp.expect_error('TC-74', 'BR-23', 'Không được đổi created_by_user_id sau khi đã ghi (vết người tạo bất biến)', 'P0001', ARRAY[
+    $q$UPDATE class_schedule SET created_by_user_id = 4 WHERE class_id = 2$q$
+], 'BR-23');
+
+SELECT pg_temp.expect_success('TP-22', 'BR-23', 'UPDATE tự ghi updated_by_user_id (từ biến phiên, không tin giá trị truyền vào) và updated_at', ARRAY[
+    $q$SELECT SET_CONFIG('app.current_user_id', '4', TRUE)$q$,
+    $q$UPDATE class_schedule SET class_name = 'T05-UPD', updated_by_user_id = 2 WHERE class_id = 2$q$
+], $q$SELECT updated_by_user_id = 4
+          AND updated_at >= CURRENT_TIMESTAMP - INTERVAL '1 minute'
+          AND created_by_user_id = 1
+      FROM class_schedule
+      WHERE class_id = 2$q$);
+
+SELECT pg_temp.expect_success('TP-35', 'BR-23', 'UPDATE nội bộ do trigger (BR-07 tự kích hoạt hợp đồng khi thanh toán) ghi người thao tác hiện tại vào updated_by_user_id', ARRAY[
+    $q$SELECT SET_CONFIG('app.current_user_id', '3', TRUE)$q$,
+    $q$SELECT pg_temp.new_sub(26, 1, 800000, pg_temp.slot(-1, 8), pg_temp.slot(29, 22))$q$,
+    $q$SELECT SET_CONFIG('app.current_user_id', '4', TRUE)$q$,
+    $q$SELECT pg_temp.pay_sub(pg_temp.last_sub(26))$q$
+], $q$SELECT sub_status = 'Active' AND created_by_user_id = 3 AND updated_by_user_id = 4 AND updated_at IS NOT NULL
+      FROM member_subscription
+      WHERE subscription_id = pg_temp.last_sub(26)$q$);
 
 
 -- ============================================================================

@@ -12,6 +12,9 @@
 -- NGUYÊN TẮC:
 --   * BR-10 có 2 lớp: trigger bất biến (mọi role, kể cả chủ sở hữu) và GRANT/REVOKE; các test
 --     AD-01..03 kiểm tra lớp phân quyền (42501 xảy ra trước khi trigger được kích hoạt).
+--   * BR-10 có thêm 2 lớp (PHẦN 7 của 08): chủ sở hữu duy nhất gym_owner (NOLOGIN) và event trigger
+--     evt_protect_billing_log; các test EV-xx kiểm tra cả superuser cũng bị chặn ALTER/DROP, và lối thoát
+--     có chủ đích app.allow_billing_maintenance = 'on'.
 --   * Nhóm RD (Denied): role bị từ chối thao tác trái quyền. Test ĐẠT (PASS) khi
 --     CSDL trả đúng SQLSTATE 42501 (insufficient_privilege).
 --   * Nhóm RA (Allowed): thao tác hợp lệ của role phải được chấp nhận, và dữ liệu
@@ -27,6 +30,10 @@
 -- ============================================================================
 
 BEGIN;
+
+-- BR-23: mọi INSERT/UPDATE trên bảng có vết người thực hiện phải biết user ứng dụng hiện tại.
+-- SET LOCAL là biến cấu hình của giao dịch, độc lập với role nên vẫn còn hiệu lực sau SET LOCAL ROLE.
+SET LOCAL app.current_user_id = '1';
 
 SET client_min_messages = WARNING;
 
@@ -52,7 +59,8 @@ CREATE FUNCTION pg_temp.expect_denied(
     p_description       VARCHAR,
     p_statements        TEXT[],
     p_expected_sqlstate VARCHAR DEFAULT '42501',
-    p_setup_statements  TEXT[]  DEFAULT ARRAY[]::TEXT[]
+    p_setup_statements  TEXT[]  DEFAULT ARRAY[]::TEXT[],
+    p_message_fragment  VARCHAR DEFAULT NULL
 )
 RETURNS VOID AS $$
 DECLARE
@@ -62,7 +70,10 @@ BEGIN
         EXECUTE v_statement;
     END LOOP;
 
-    EXECUTE format('SET LOCAL ROLE %I', p_role);
+    -- Nhãn 'superuser' = chính superuser của phiên (tên khác nhau tùy môi trường: postgres, gym_admin...).
+    IF p_role <> 'superuser' THEN
+        EXECUTE format('SET LOCAL ROLE %I', p_role);
+    END IF;
 
     FOREACH v_statement IN ARRAY p_statements LOOP
         EXECUTE v_statement;
@@ -77,7 +88,9 @@ EXCEPTION
                                  actual_sqlstate, result, db_message)
         VALUES (p_tc_id, p_role, p_description, p_expected_sqlstate,
                 SQLSTATE,
-                CASE WHEN SQLSTATE = p_expected_sqlstate THEN 'PASS' ELSE 'FAIL' END,
+                CASE WHEN SQLSTATE = p_expected_sqlstate
+                          AND (p_message_fragment IS NULL OR POSITION(p_message_fragment IN SQLERRM) > 0)
+                     THEN 'PASS' ELSE 'FAIL' END,
                 SQLERRM);
 END;
 $$ LANGUAGE plpgsql;
@@ -101,7 +114,10 @@ BEGIN
         EXECUTE v_statement;
     END LOOP;
 
-    EXECUTE format('SET LOCAL ROLE %I', p_role);
+    -- Nhãn 'superuser' = chính superuser của phiên (tên khác nhau tùy môi trường: postgres, gym_admin...).
+    IF p_role <> 'superuser' THEN
+        EXECUTE format('SET LOCAL ROLE %I', p_role);
+    END IF;
 
     FOREACH v_statement IN ARRAY p_statements LOOP
         EXECUTE v_statement;
@@ -460,6 +476,105 @@ SELECT pg_temp.expect_allowed('LA-01', 'gym_u_tech', 'Tài khoản gym_u_tech th
     $q$SELECT * FROM equipment$q$
 ], $q$SELECT COUNT(*) > 0
       FROM equipment$q$);
+
+
+-- ============================================================================
+-- PHẦN 7: BẢO VỆ billing_log Ở MỨC DDL (BR-10): gym_owner + EVENT TRIGGER evt_protect_billing_log
+-- ============================================================================
+
+-- Superuser (gốc tin cậy) cũng bị chặn nếu không chủ động mở lối thoát.
+SELECT pg_temp.expect_denied('EV-01', 'superuser', 'Superuser ALTER TABLE billing_log DISABLE TRIGGER USER bị event trigger chặn', ARRAY[
+    $q$ALTER TABLE billing_log DISABLE TRIGGER USER$q$
+], 'P0001', ARRAY[]::TEXT[], 'BR-10');
+
+SELECT pg_temp.expect_denied('EV-02', 'superuser', 'Superuser DROP TRIGGER trg_billing_immutable_delete ON billing_log bị chặn', ARRAY[
+    $q$DROP TRIGGER trg_billing_immutable_delete ON billing_log$q$
+], 'P0001', ARRAY[]::TEXT[], 'BR-10');
+
+SELECT pg_temp.expect_denied('EV-03', 'superuser', 'Superuser DROP TABLE billing_log CASCADE bị chặn', ARRAY[
+    $q$DROP TABLE billing_log CASCADE$q$
+], 'P0001', ARRAY[]::TEXT[], 'BR-10');
+
+SELECT pg_temp.expect_denied('EV-04', 'superuser', 'Superuser thay ruột hàm trigger bất biến (CREATE OR REPLACE FUNCTION) bị chặn', ARRAY[
+    $q$CREATE OR REPLACE FUNCTION trg_fn_billing_immutable_delete()
+       RETURNS TRIGGER AS 'BEGIN RETURN OLD; END;' LANGUAGE plpgsql$q$
+], 'P0001', ARRAY[]::TEXT[], 'BR-10');
+
+SELECT pg_temp.expect_denied('EV-05', 'superuser', 'Superuser đổi tên trigger bất biến (ALTER TRIGGER ... RENAME) bị chặn', ARRAY[
+    $q$ALTER TRIGGER trg_billing_immutable_update ON billing_log RENAME TO trg_off$q$
+], 'P0001', ARRAY[]::TEXT[], 'BR-10');
+
+-- Lối thoát có chủ đích: superuser + app.allow_billing_maintenance = 'on' (kết quả bị ROLLBACK).
+SELECT pg_temp.expect_allowed('EV-06', 'superuser', 'Lối thoát bảo trì: superuser đặt app.allow_billing_maintenance = on rồi DISABLE/DROP TRIGGER được phép', ARRAY[
+    $q$ALTER TABLE billing_log DISABLE TRIGGER USER$q$,
+    $q$DROP TRIGGER trg_billing_immutable_delete ON billing_log$q$
+], $q$SELECT NOT EXISTS (
+          SELECT 1
+          FROM pg_trigger
+          WHERE tgrelid = 'billing_log'::REGCLASS
+            AND tgname = 'trg_billing_immutable_delete')$q$,
+ARRAY[$q$SET LOCAL app.allow_billing_maintenance = 'on'$q$]);
+
+-- Role thường không thể dùng lối thoát: không phải chủ sở hữu nên bị từ chối (42501) trước cả event trigger.
+SELECT pg_temp.expect_denied('EV-07', 'gym_u_admin', 'gym_u_admin ALTER TABLE billing_log (kể cả khi đặt lối thoát) -> 42501 không phải chủ sở hữu', ARRAY[
+    $q$SET LOCAL app.allow_billing_maintenance = 'on'$q$,
+    $q$ALTER TABLE billing_log DISABLE TRIGGER USER$q$
+]);
+
+SELECT pg_temp.expect_denied('EV-08', 'gym_role_admin', 'gym_role_admin DROP TRIGGER trg_billing_immutable_update ON billing_log -> 42501', ARRAY[
+    $q$DROP TRIGGER trg_billing_immutable_update ON billing_log$q$
+]);
+
+SELECT pg_temp.expect_denied('EV-09', 'gym_role_admin', 'gym_role_admin DROP TABLE billing_log -> 42501', ARRAY[
+    $q$DROP TABLE billing_log CASCADE$q$
+]);
+
+SELECT pg_temp.expect_denied('EV-10', 'gym_role_admin', 'gym_role_admin ALTER TABLE billing_log DISABLE TRIGGER ALL -> 42501', ARRAY[
+    $q$ALTER TABLE billing_log DISABLE TRIGGER ALL$q$
+]);
+
+-- Chủ sở hữu duy nhất: mọi bảng/view/sequence/hàm/thủ tục trong schema public thuộc gym_owner
+-- (trừ đối tượng của extension btree_gist và hàm của chính event trigger, do superuser sở hữu).
+SELECT pg_temp.expect_allowed('EV-11', 'superuser', 'Mọi bảng, view, sequence, hàm, thủ tục trong schema public đều thuộc gym_owner', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT (SELECT COUNT(*)
+              FROM pg_class AS c
+              JOIN pg_namespace AS n ON n.oid = c.relnamespace
+              WHERE n.nspname = 'public'
+                AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+                AND c.relowner <> 'gym_owner'::REGROLE) = 0
+          AND (SELECT COUNT(*)
+               FROM pg_proc AS p
+               JOIN pg_namespace AS n ON n.oid = p.pronamespace
+               WHERE n.nspname = 'public'
+                 AND p.proname <> 'fn_evt_protect_billing_log'
+                 AND p.proowner <> 'gym_owner'::REGROLE
+                 AND NOT EXISTS (SELECT 1 FROM pg_depend AS d
+                                 WHERE d.objid = p.oid AND d.deptype = 'e')) = 0
+          AND (SELECT COUNT(*)
+               FROM pg_class AS c
+               JOIN pg_namespace AS n ON n.oid = c.relnamespace
+               WHERE n.nspname = 'public' AND c.relkind = 'r'
+                 AND c.relowner = 'gym_owner'::REGROLE) >= 18$q$);
+
+SELECT pg_temp.expect_allowed('EV-12', 'superuser', 'gym_owner NOLOGIN, không phải superuser; không gym_u_*/gym_role_* nào là thành viên của gym_owner', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT (SELECT NOT rolcanlogin AND NOT rolsuper FROM pg_roles WHERE rolname = 'gym_owner')
+          AND NOT EXISTS (SELECT 1
+                          FROM pg_auth_members AS m
+                          JOIN pg_roles AS r ON r.oid = m.member
+                          WHERE m.roleid = 'gym_owner'::REGROLE)
+          AND NOT EXISTS (SELECT 1
+                          FROM pg_roles AS r
+                          WHERE r.rolname LIKE 'gym\_%' AND r.rolname <> 'gym_owner' AND NOT r.rolsuper
+                            AND pg_has_role(r.oid, 'gym_owner'::REGROLE, 'USAGE'))$q$);
+
+SELECT pg_temp.expect_allowed('EV-13', 'superuser', 'Event trigger evt_protect_billing_log (ddl_command_end) và _drop (sql_drop) đang bật', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT (SELECT COUNT(*)
+              FROM pg_event_trigger
+              WHERE evtname IN ('evt_protect_billing_log', 'evt_protect_billing_log_drop')
+                AND evtenabled = 'O') = 2$q$);
 
 
 -- ============================================================================

@@ -24,7 +24,8 @@
 --                 trg_check_class_enrollment_conflicts
 --   BR-18         trg_check_pt_booking_creation      BEFORE INSERT ON pt_booking
 --   BR-21         trg_check_reservation_window       BEFORE INSERT/UPDATE ON equipment_reservation
---   BR-23         trg_fill_created_by                BEFORE INSERT ON 5 bảng giao dịch
+--   BR-23         trg_fill_created_by                BEFORE INSERT ON 5 bảng giao dịch (bắt buộc có người thực hiện)
+--                 trg_set_updated_by                 BEFORE UPDATE ON 5 bảng giao dịch (ghi updated_by_user_id/updated_at)
 --   BR-24         sp_process_subscription_renewals(p_as_of, p_grace_days)  (PROCEDURE, chạy hằng ngày)
 --   BR-25         trg_late_cancel_pt_booking         BEFORE UPDATE OF status ON pt_booking
 -- ============================================================================
@@ -387,18 +388,48 @@ EXECUTE FUNCTION trg_fn_finish_equipment_maintenance();
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- TRIGGER 3: trg_fill_created_by (BR-23) - Vết truy xuất người thực hiện
+-- TRIGGER 3: trg_fill_created_by + trg_set_updated_by (BR-23) - Mọi thao tác tạo/sửa dữ liệu giao dịch
+-- phải gắn với người dùng thực hiện (member_subscription, billing_log, class_schedule, pt_booking, maintenance_log).
 -- Cách dùng: phiên làm việc của ứng dụng chạy lệnh
---     SET app.current_user_id = '<user_id người đăng nhập>';      -- (hoặc SET LOCAL trong giao dịch)
--- Khi INSERT mà created_by_user_id còn NULL, trigger điền giá trị từ biến phiên đó. Nếu biến chưa
--- được đặt thì cột giữ NULL (cột cho phép NULL để dữ liệu cũ / tác vụ hệ thống như cron vẫn hợp lệ).
+--     SET LOCAL app.current_user_id = '<user_id người đăng nhập>';      -- (trong giao dịch; hoặc SET ở mức phiên)
+--   * INSERT: created_by_user_id (NOT NULL) được điền từ biến phiên nếu câu lệnh không nêu; nếu cả hai đều
+--     không có (biến chưa đặt hoặc rỗng) thì trigger RAISE lỗi BR-23 (P0001). Giá trị không phải user_id hợp lệ
+--     bị khóa ngoại fk_*_created_by chặn (23503).
+--   * UPDATE: updated_by_user_id/updated_at luôn do trigger ghi đè từ biến phiên và CURRENT_TIMESTAMP (không tin
+--     giá trị do câu lệnh truyền vào); biến phiên chưa đặt thì RAISE lỗi BR-23. created_by_user_id không được đổi.
+--   * Các UPDATE nội bộ (BR-07 tự kích hoạt hợp đồng, BR-25 trừ buổi PT, thủ tục BR-24) chạy trong cùng phiên của
+--     lệnh người dùng nên dùng chính người thao tác đó; tác vụ định kỳ (scheduler) phải đặt app.current_user_id
+--     (ví dụ PGOPTIONS='-c app.current_user_id=3').
+-- Thứ tự BEFORE UPDATE theo tên: trg_billing_immutable_update (BR-10) chạy trước trg_set_updated_by.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trg_fn_fill_created_by()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.created_by_user_id IS NULL THEN
         NEW.created_by_user_id := NULLIF(current_setting('app.current_user_id', TRUE), '')::INT;
+        IF NEW.created_by_user_id IS NULL THEN
+            RAISE EXCEPTION 'Lỗi nghiệp vụ BR-23: Thao tác tạo dữ liệu trên % phải gắn với người dùng thực hiện (đặt app.current_user_id hoặc nêu created_by_user_id)',
+                TG_TABLE_NAME;
+        END IF;
     END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION trg_fn_set_updated_by()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_actor INT := NULLIF(current_setting('app.current_user_id', TRUE), '')::INT;
+BEGIN
+    IF v_actor IS NULL THEN
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-23: Thao tác sửa dữ liệu trên % phải gắn với người dùng thực hiện (chưa đặt app.current_user_id)',
+            TG_TABLE_NAME;
+    END IF;
+    IF NEW.created_by_user_id IS DISTINCT FROM OLD.created_by_user_id THEN
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-23: Không được đổi created_by_user_id của %', TG_TABLE_NAME;
+    END IF;
+    NEW.updated_by_user_id := v_actor;
+    NEW.updated_at := CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -407,21 +438,41 @@ DROP TRIGGER IF EXISTS trg_fill_created_by ON member_subscription;
 CREATE TRIGGER trg_fill_created_by BEFORE INSERT ON member_subscription
 FOR EACH ROW EXECUTE FUNCTION trg_fn_fill_created_by();
 
+DROP TRIGGER IF EXISTS trg_set_updated_by ON member_subscription;
+CREATE TRIGGER trg_set_updated_by BEFORE UPDATE ON member_subscription
+FOR EACH ROW EXECUTE FUNCTION trg_fn_set_updated_by();
+
 DROP TRIGGER IF EXISTS trg_fill_created_by ON billing_log;
 CREATE TRIGGER trg_fill_created_by BEFORE INSERT ON billing_log
 FOR EACH ROW EXECUTE FUNCTION trg_fn_fill_created_by();
+
+DROP TRIGGER IF EXISTS trg_set_updated_by ON billing_log;
+CREATE TRIGGER trg_set_updated_by BEFORE UPDATE ON billing_log
+FOR EACH ROW EXECUTE FUNCTION trg_fn_set_updated_by();
 
 DROP TRIGGER IF EXISTS trg_fill_created_by ON class_schedule;
 CREATE TRIGGER trg_fill_created_by BEFORE INSERT ON class_schedule
 FOR EACH ROW EXECUTE FUNCTION trg_fn_fill_created_by();
 
+DROP TRIGGER IF EXISTS trg_set_updated_by ON class_schedule;
+CREATE TRIGGER trg_set_updated_by BEFORE UPDATE ON class_schedule
+FOR EACH ROW EXECUTE FUNCTION trg_fn_set_updated_by();
+
 DROP TRIGGER IF EXISTS trg_fill_created_by ON pt_booking;
 CREATE TRIGGER trg_fill_created_by BEFORE INSERT ON pt_booking
 FOR EACH ROW EXECUTE FUNCTION trg_fn_fill_created_by();
 
+DROP TRIGGER IF EXISTS trg_set_updated_by ON pt_booking;
+CREATE TRIGGER trg_set_updated_by BEFORE UPDATE ON pt_booking
+FOR EACH ROW EXECUTE FUNCTION trg_fn_set_updated_by();
+
 DROP TRIGGER IF EXISTS trg_fill_created_by ON maintenance_log;
 CREATE TRIGGER trg_fill_created_by BEFORE INSERT ON maintenance_log
 FOR EACH ROW EXECUTE FUNCTION trg_fn_fill_created_by();
+
+DROP TRIGGER IF EXISTS trg_set_updated_by ON maintenance_log;
+CREATE TRIGGER trg_set_updated_by BEFORE UPDATE ON maintenance_log
+FOR EACH ROW EXECUTE FUNCTION trg_fn_set_updated_by();
 
 
 -- ----------------------------------------------------------------------------
@@ -459,6 +510,7 @@ EXECUTE FUNCTION trg_fn_fill_billing_period_start();
 --   * UPDATE hóa đơn 'Pending': được chuyển sang 'Completed'/'Failed' (và chỉnh amount, payment_date,
 --     payment_method khi ghi nhận thanh toán); billing_id, subscription_id, billing_period_start,
 --     invoice_no, created_at, created_by_user_id không đổi.
+--   * updated_by_user_id/updated_at (BR-23) do trg_set_updated_by ghi sau đó, nên không nằm trong các cột bị kiểm tra.
 --   * Hóa đơn 'Failed'/'Refunded' là trạng thái cuối: không được sửa.
 -- Muốn sửa dữ liệu hóa đơn, phải DISABLE TRIGGER có chủ đích (thao tác DDL của chủ sở hữu, để lại dấu vết).
 -- ----------------------------------------------------------------------------
@@ -1108,7 +1160,7 @@ $$;
 -- ============================================================================
 -- Tập tin này chạy SAU dữ liệu mẫu nên dữ liệu mẫu được nạp khi chưa có trigger. Khối DO dưới đây
 -- kiểm tra lại từng quy tắc trên dữ liệu hiện có và RAISE EXCEPTION nếu còn dòng nào vi phạm,
--- bảo đảm dữ liệu mẫu tuân thủ đầy đủ các quy tắc (BR-23 cho phép NULL nên không có điều kiện kiểm toán).
+-- bảo đảm dữ liệu mẫu tuân thủ đầy đủ các quy tắc.
 DO $$
 DECLARE
     v_violations TEXT[] := ARRAY[]::TEXT[];
@@ -1213,10 +1265,20 @@ BEGIN
       AND EXISTS (SELECT 1 FROM maintenance_log AS ml WHERE ml.equipment_id = e.equipment_id AND ml.status = 'In_Progress');
     IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-19: %s thiết bị có ca In_Progress nhưng không ở trạng thái Under_Maintenance', v_count); END IF;
 
+    -- BR-23: mọi dòng của 5 bảng giao dịch đều có người tạo (cột NOT NULL; kiểm toán thêm để báo lỗi rõ ràng)
+    SELECT COUNT(*) INTO v_count FROM (
+        SELECT created_by_user_id FROM member_subscription UNION ALL
+        SELECT created_by_user_id FROM billing_log UNION ALL
+        SELECT created_by_user_id FROM class_schedule UNION ALL
+        SELECT created_by_user_id FROM pt_booking UNION ALL
+        SELECT created_by_user_id FROM maintenance_log) AS t
+    WHERE t.created_by_user_id IS NULL;
+    IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-23: %s dòng giao dịch thiếu created_by_user_id', v_count); END IF;
+
     IF array_length(v_violations, 1) > 0 THEN
         RAISE EXCEPTION 'KIỂM TOÁN DỮ LIỆU MẪU THẤT BẠI: %', array_to_string(v_violations, '; ');
     END IF;
 
-    RAISE NOTICE 'Kiểm toán dữ liệu mẫu: tất cả quy tắc BR-05, 07, 08, 12, 16, 18, 19, 21 đều thỏa mãn';
+    RAISE NOTICE 'Kiểm toán dữ liệu mẫu: tất cả quy tắc BR-05, 07, 08, 12, 16, 18, 19, 21, 23 đều thỏa mãn';
 END;
 $$;

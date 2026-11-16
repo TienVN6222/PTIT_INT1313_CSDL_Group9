@@ -6,11 +6,11 @@
 <!-- Title: EER Pages: 1 -->
 <svg width="1131pt" height="281pt"
  viewBox="0.00 0.00 1131.20 281.20" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(295.1 259.6)">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(284.85 259.6)">
 <title>EER</title>
-<polygon fill="#ffffff" stroke="transparent" points="-295.1,21.6 -295.1,-259.6 836.1,-259.6 836.1,21.6 -295.1,21.6"/>
-<text text-anchor="middle" x="270.5" y="-214.8" font-family="DejaVu Sans" font-size="24.00" fill="#000000">EER diagram (Elmasri notation) &#45; Gym Membership &amp; Personal Training Planner (Group 9)</text>
-<text text-anchor="middle" x="270.5" y="-188.8" font-family="DejaVu Sans" font-size="24.00" fill="#000000"> </text>
+<polygon fill="#ffffff" stroke="transparent" points="-284.85,21.6 -284.85,-259.6 846.35,-259.6 846.35,21.6 -284.85,21.6"/>
+<text text-anchor="middle" x="280.75" y="-214.8" font-family="DejaVu Sans" font-size="24.00" fill="#000000">EER diagram (Elmasri notation) &#45; Gym Membership &amp; Personal Training Planner (Group 9)</text>
+<text text-anchor="middle" x="280.75" y="-188.8" font-family="DejaVu Sans" font-size="24.00" fill="#000000"> </text>
 <!-- USER -->
 <g id="node1" class="node">
 <title>USER</title>
@@ -1236,13 +1236,13 @@
 <!-- CBY -->
 <g id="node107" class="node">
 <title>CBY</title>
-<polygon fill="#f3e8ff" stroke="#000000" points="490,-140 69,-140 69,-57 496,-57 496,-134 490,-140"/>
-<polyline fill="none" stroke="#000000" points="490,-140 490,-134 "/>
-<polyline fill="none" stroke="#000000" points="496,-134 490,-134 "/>
-<text text-anchor="middle" x="282.5" y="-124.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">CREATED_BY (BR&#45;23), 1 : N, partial:</text>
-<text text-anchor="middle" x="282.5" y="-109.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">USER_ACCOUNT (0..1 actor) &#45;&#45;&gt; MEMBER_SUBSCRIPTION,</text>
-<text text-anchor="middle" x="282.5" y="-94.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING,</text>
-<text text-anchor="middle" x="282.5" y="-79.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">MAINTENANCE_LOG (attribute created_by_user_id;</text>
+<polygon fill="#f3e8ff" stroke="#000000" points="555.5,-140 3.5,-140 3.5,-57 561.5,-57 561.5,-134 555.5,-140"/>
+<polyline fill="none" stroke="#000000" points="555.5,-140 555.5,-134 "/>
+<polyline fill="none" stroke="#000000" points="561.5,-134 555.5,-134 "/>
+<text text-anchor="middle" x="282.5" y="-124.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">CREATED_BY / UPDATED_BY (BR&#45;23), 1 : N:</text>
+<text text-anchor="middle" x="282.5" y="-109.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">USER_ACCOUNT (1 creator, 0..1 last editor) &#45;&#45;&gt; MEMBER_SUBSCRIPTION,</text>
+<text text-anchor="middle" x="282.5" y="-94.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG</text>
+<text text-anchor="middle" x="282.5" y="-79.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">(attributes created_by_user_id NOT NULL, updated_by_user_id, updated_at;</text>
 <text text-anchor="middle" x="282.5" y="-64.8" font-family="DejaVu Sans" font-size="14.00" fill="#000000">not drawn as lines to keep the diagram readable)</text>
 </g>
 <!-- CBY&#45;&gt;USER -->

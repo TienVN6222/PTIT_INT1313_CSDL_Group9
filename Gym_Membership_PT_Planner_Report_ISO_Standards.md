@@ -263,7 +263,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-02 | Admin | Tôi phải gán được vai trò cho từng người dùng để mỗi người chỉ làm đúng việc của mình. |
 | UR-03 | Lễ tân | Tôi phải đăng ký được gói tập cho hội viên và biết hợp đồng nào đang có hiệu lực. |
 | UR-04 | Lễ tân | Tôi phải ghi nhận được thanh toán, và hợp đồng chỉ có hiệu lực khi đã thanh toán. |
-| UR-05 | Admin, Kế toán nội bộ | Tôi phải tin rằng hóa đơn đã thu tiền không thể bị sửa hay xóa, để đối soát được. |
+| UR-05 | FR-12, NFR-SEC-04 | BR-10 |
 | UR-06 | Hội viên, Lễ tân | Hợp đồng dài hạn phải tự gia hạn đúng hạn, và hội viên không trả tiền phải bị tạm ngưng sau thời gian ân hạn. |
 | UR-07 | Lễ tân, HLV | Tôi phải lập được lịch lớp nhóm mà không bị trùng giờ HLV hay trùng phòng. |
 | UR-08 | Lễ tân, Hội viên | Hội viên phải đăng ký được lớp, nhưng không vượt quá sức chứa và không bị trùng với lịch khác của họ. |
@@ -273,7 +273,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-12 | Kỹ thuật viên | Tôi phải quản lý được danh mục thiết bị, ngày mua, khấu hao và lịch sử bảo trì kèm chi phí. |
 | UR-13 | Lễ tân, HLV | Thiết bị hoặc phòng đang bảo trì không được xếp vào lịch mới, và một máy không bị hai ca giữ cùng lúc. |
 | UR-14 | Admin | Tôi phải xem được báo cáo doanh thu, tỷ lệ lấp đầy lớp, hiệu suất HLV, và các hợp đồng sắp hết hạn. |
-| UR-15 | Admin | Mọi giao dịch quan trọng phải truy được người thực hiện. |
+| UR-15 | FR-30 | BR-23 |
 | UR-16 | Mọi người dùng | Mật khẩu và thông tin nhạy cảm của tôi phải được bảo vệ. |
 | UR-17 | Mọi người dùng | Tra cứu thông tin phải phản hồi nhanh, không phải chờ đáng kể khi dữ liệu lớn. |
 | UR-18 | Admin | Dữ liệu phải được sao lưu để khôi phục được khi có sự cố. |
@@ -304,7 +304,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | FR-09 | Hệ thống phải từ chối chuyển hợp đồng sang `Active` khi chưa có hóa đơn `Completed`, và phải tự chuyển hợp đồng `Pending` sang `Active` khi hóa đơn của nó được ghi nhận `Completed`. | BR-07 |
 | FR-10 | Hệ thống phải cho phép ghi hóa đơn (`billing_log`) với `invoice_no` duy nhất, `amount > 0`, phương thức và trạng thái thuộc miền giá trị quy định. | BR-09 |
 | FR-11 | Hệ thống phải bảo đảm mỗi chu kỳ tính phí (`billing_period_start`) của một hợp đồng chỉ có tối đa một hóa đơn `Pending` hoặc `Completed`. | BR-08 |
-| FR-12 | Hệ thống phải từ chối xóa và `TRUNCATE` hóa đơn; hóa đơn `Completed` chỉ được chuyển sang `Refunded` và không được đổi cột nào khác; hóa đơn `Failed`/`Refunded` không được sửa. | BR-10 |
+| FR-12 | Hệ thống phải từ chối xóa và `TRUNCATE` hóa đơn; hóa đơn `Completed` chỉ được chuyển sang `Refunded` và không được đổi cột nào khác; hóa đơn `Failed`/`Refunded` không được sửa; việc `ALTER`/`DROP` bảng `billing_log`, trigger bất biến và các hàm trigger bất biến cũng bị chặn (kể cả với superuser, trừ khi bảo trì có chủ đích). | BR-10 |
 | FR-13 | Hệ thống phải cung cấp thủ tục `sp_process_subscription_renewals(p_as_of, p_grace_days)` để: chuyển hợp đồng không tự gia hạn quá hạn sang `Expired`; phát hành hóa đơn `Pending` cho hợp đồng tự gia hạn quá hạn; chuyển hợp đồng tự gia hạn sang `Suspended` khi quá hạn ân hạn mà chưa thanh toán; thủ tục phải idempotent. | BR-24 |
 | FR-14 | Hệ thống phải gia hạn hợp đồng (cộng `duration_days`, đặt lại `remaining_sessions`, chuyển `Active`) khi hóa đơn gia hạn được thanh toán. | BR-24, BR-07 |
 
@@ -343,7 +343,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | FR-27 | Hệ thống phải cho phép giữ chỗ thiết bị (`equipment_reservation`) gắn đúng một nguồn (ca PT hoặc lớp), và từ chối giữ chỗ trùng giờ trên cùng thiết bị. | BR-21 |
 | FR-28 | Hệ thống phải từ chối giữ chỗ thiết bị đang `Under_Maintenance`, hoặc trùng khung giờ ca bảo trì `In_Progress`, hoặc vượt ngoài khung giờ của ca/lớp gắn kèm; từ chối chuyển thiết bị sang `Under_Maintenance` khi còn lượt giữ chỗ `Reserved` trong tương lai; và tự đồng bộ trạng thái thiết bị theo nhật ký bảo trì (mở ca `In_Progress` → `Under_Maintenance`; ca kết thúc và không còn ca đang sửa → `Operational`). | BR-19, BR-21 |
 | FR-29 | Hệ thống phải cho phép Kỹ thuật viên ghi nhật ký bảo trì (`maintenance_log`) với `cost >= 0`, `end_time >= start_time` (nếu có) và người thực hiện là nhân viên. | BR-20 |
-| FR-30 | Hệ thống phải tự điền `created_by_user_id` từ biến phiên `app.current_user_id` khi tạo hợp đồng, hóa đơn, lịch lớp, ca PT và nhật ký bảo trì (nếu ứng dụng đã đặt biến). | BR-23 |
+| FR-30 | Hệ thống phải bắt buộc ghi `created_by_user_id` (NOT NULL) từ biến phiên `app.current_user_id` khi tạo hợp đồng, hóa đơn, lịch lớp, ca PT và nhật ký bảo trì, từ chối thao tác nếu chưa đặt biến phiên; và phải ghi `updated_by_user_id`, `updated_at` ở mỗi `UPDATE` đồng thời cấm đổi `created_by_user_id`. | BR-23 |
 
 ##### Nhóm F — Báo cáo và truy vấn
 
@@ -366,7 +366,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | NFR-SEC-01 | Hệ thống phải áp dụng đặc quyền tối thiểu: `REVOKE ALL` trên mọi bảng và sequence của schema `public` khỏi `PUBLIC`, sau đó chỉ `GRANT` cho 5 role nhóm đúng quyền theo ma trận trong `08_rbac_security.sql`; không role nào có `TRUNCATE`; Lễ tân không có `DELETE` ở bất kỳ bảng nào. |
 | NFR-SEC-02 | Mật khẩu phải chỉ được lưu dưới dạng băm trong `user_account.password_hash` (không lưu bản rõ), và cột này phải không đọc được (`SELECT` mức cột không gồm `password_hash`) bởi mọi role ứng dụng; Lễ tân không được `UPDATE` cột này. |
 | NFR-SEC-03 | Dữ liệu phải được mã hóa khi lưu trữ (encryption at rest). **Đây là yêu cầu triển khai** (đĩa/volume mã hóa như LUKS hoặc mã hóa lưu trữ của nhà cung cấp đám mây, kết nối TLS); bản Docker demo **chưa** cài đặt mã hóa này và bản demo dùng mật khẩu mẫu `demo_2026` cho các tài khoản `gym_u_*` phải được đổi khi triển khai thật. |
-| NFR-SEC-04 | Hóa đơn phải bất biến: mọi role ứng dụng (kể cả Admin) chỉ có `SELECT, INSERT` trên `billing_log`, đồng thời trigger `trg_billing_immutable_*` phải chặn `UPDATE`/`DELETE`/`TRUNCATE` sai quy định kể cả với chủ sở hữu bảng. |
+| NFR-SEC-04 | Hóa đơn phải bất biến theo bốn lớp: (1) trigger `trg_billing_immutable_*` chặn `UPDATE`/`DELETE`/`TRUNCATE` sai quy định; (2) mọi role ứng dụng (kể cả Admin) chỉ có `SELECT, INSERT` trên `billing_log`; (3) mọi đối tượng ứng dụng thuộc role `NOLOGIN` `gym_owner`, không tài khoản đăng nhập nào là chủ sở hữu; (4) event trigger `evt_protect_billing_log`/`_drop` chặn `ALTER`/`DROP` `billing_log`, trigger và hàm bất biến, kể cả với superuser (superuser chỉ bảo trì được bằng thao tác tường minh `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`). |
 | NFR-SEC-05 | Hàm trigger cần ghi vào bảng mà role gọi không có quyền phải chạy `SECURITY DEFINER` với `search_path` cố định (`public, pg_temp`) để không phải cấp thêm quyền ghi cho role. |
 
 ##### Hiệu năng (Performance)
@@ -397,7 +397,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | Mã | Yêu cầu |
 | --- | --- |
 | NFR-AVL-01 | Khi triển khai thật, quản trị phải sao lưu định kỳ (khuyến nghị `pg_dump` hằng ngày kèm sao lưu liên tục WAL) và kiểm tra khôi phục. Bản demo chỉ dùng Docker volume, chưa có lịch sao lưu tự động. |
-| NFR-AVL-02 | Thủ tục `sp_process_subscription_renewals` phải được bộ lập lịch bên ngoài gọi định kỳ (mặc định mỗi ngày) và an toàn khi gọi lặp. Docker demo có service `scheduler` (`fitzone_renewal_scheduler`, chu kỳ `RENEWAL_INTERVAL_SECONDS`); production dùng `pg_cron` hoặc cron. |
+| NFR-AVL-02 | Thủ tục `sp_process_subscription_renewals` phải được bộ lập lịch bên ngoài gọi định kỳ (mặc định mỗi ngày) và an toàn khi gọi lặp. Docker demo có service `scheduler` (`fitzone_renewal_scheduler`, chu kỳ `RENEWAL_INTERVAL_SECONDS`, người thực hiện ghi vết BR-23 lấy từ `SCHEDULER_ACTOR_USER_ID`, mặc định 3); production dùng `pg_cron` hoặc cron và phải đặt `app.current_user_id` cho phiên gọi. |
 
 ##### Khả bảo trì (Maintainability)
 
@@ -431,14 +431,14 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 **Giả định**
 
 - Ca PT diễn ra ở khu tập tự do, không gắn với phòng cụ thể; BR-15 chỉ áp dụng cho lớp nhóm.
-- Ứng dụng đặt `app.current_user_id` cho mỗi phiên làm việc để truy vết người thực hiện (BR-23); nếu không đặt thì cột giữ `NULL`.
+- Ứng dụng đặt `app.current_user_id` cho mỗi phiên làm việc để truy vết người thực hiện (BR-23); nếu không đặt thì thao tác ghi bị CSDL từ chối (người dùng thủ công chạy `SET app.current_user_id = '<id>'`; bộ lập lịch dùng biến `SCHEDULER_ACTOR_USER_ID`, mặc định 3).
 - Nhân viên kỹ thuật cập nhật trạng thái `Under_Maintenance` của phòng/thiết bị; hệ thống không tự suy ra từ nhật ký bảo trì.
 - Mỗi hội viên có hợp đồng đang dùng tối đa một gói tại một thời điểm.
 - Mã hóa dữ liệu lưu trữ và sao lưu do hạ tầng triển khai đảm nhận.
 
 #### 1.1.12. Ma trận truy vết (Traceability Matrix)
 
-Cột "Kiểm chứng" dẫn đến mã test cụ thể trong: **05** = `05_constraint_test_cases.sql` (105 test: TC-01..TC-71, TP-01..TP-34), **09** = `09_rbac_test_cases.sql` (48 test: RA/RD/TA/TD/EA/ED/MA/MD/AA/AD/LA/LD), **06** = `06_performance_test_cases.sql` (PT-01..PT-08). Mã test được kiểm tra khớp với tập tin SQL tại thời điểm cập nhật.
+Cột "Kiểm chứng" dẫn đến mã test cụ thể trong: **05** = `05_constraint_test_cases.sql` (109 test: TC-01..TC-74, TP-01..TP-35), **09** = `09_rbac_test_cases.sql` (61 test: RA/RD/TA/TD/EA/ED/MA/MD/AA/AD/LA/LD và EV-01..EV-13), **06** = `06_performance_test_cases.sql` (PT-01..PT-08). Mã test được kiểm tra khớp với tập tin SQL tại thời điểm cập nhật.
 
 *Bảng 1-17. Ma trận truy vết UR → FR/NFR → BR → bảng → đối tượng thực thi → kiểm chứng*
 
@@ -462,10 +462,10 @@ Cột "Kiểm chứng" dẫn đến mã test cụ thể trong: **05** = `05_cons
 | UR-16 | NFR-SEC-01, NFR-SEC-02, NFR-SEC-03, NFR-SEC-05 | BR-22 | `user_account` | `REVOKE ... FROM PUBLIC`, `GRANT SELECT (cột)` không gồm `password_hash`, `SECURITY DEFINER` | 09: RD-01, RD-02, AD-04 (ẩn password_hash), RD-03..RD-06, TD-01..TD-07, ED-01..ED-05, MD-01..MD-05 (từ chối quyền ngoài ma trận), TA-01, RA-03 (SECURITY DEFINER) |
 | UR-17 | NFR-PERF-01, NFR-PERF-02 | — | `user_account`, `billing_log`, `pt_booking` | các chỉ mục `idx_*` | 06: PT-01..PT-08 |
 | UR-18 | NFR-AVL-01 | — | toàn CSDL | quy trình `pg_dump` (triển khai) | Không kiểm thử tự động; kiểm chứng thủ công khi triển khai |
-| UR-01..UR-13 | NFR-INT-01..NFR-INT-05 | BR-01..BR-26 | toàn CSDL | khóa ngoại, `CHECK`, `EXCLUDE`, khối kiểm toán dữ liệu | 05: TC-01..TC-71, TP-01..TP-34 (toàn bộ 105 test); khối DATA AUDIT của `04_triggers_views.sql` |
+| UR-01..UR-13 | NFR-INT-01..NFR-INT-05 | BR-01..BR-26 | toàn CSDL | khóa ngoại, `CHECK`, `EXCLUDE`, khối kiểm toán dữ liệu | 05: TC-01..TC-74, TP-01..TP-35 (toàn bộ 109 test); khối DATA AUDIT của `04_triggers_views.sql` |
 | — | NFR-MNT-01..NFR-MNT-04, NFR-USE-01, NFR-USE-02 | — | — | SQLStyle.guide, đặt tên ràng buộc, thứ tự nạp tập tin, thông báo `RAISE EXCEPTION` | Rà soát tài liệu; 05/09/06 chạy được từ đầu đến cuối |
 
-**Các yêu cầu chưa thực thi hoặc chỉ thực thi một phần:** NFR-SEC-03 (mã hóa khi lưu trữ) và NFR-AVL-01 (sao lưu) là yêu cầu triển khai, không có trong bản Docker demo; FR-30/BR-23 phụ thuộc ứng dụng đặt `app.current_user_id`; FR-13/BR-24 cần bộ lập lịch ngoài (đã có container `scheduler` trong demo; production dùng `pg_cron`/cron). Chi tiết xem business_rules.md, mục "Tổng hợp mức độ thực thi".
+**Các yêu cầu chưa thực thi hoặc chỉ thực thi một phần:** NFR-SEC-03 (mã hóa khi lưu trữ) và NFR-AVL-01 (sao lưu) là yêu cầu triển khai, không có trong bản Docker demo; BR-10 và BR-23 được thực thi đầy đủ ở CSDL, lưu ý còn lại là superuser vốn là gốc tin cậy (bảo trì `billing_log` phải tường minh) và mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`; FR-13/BR-24 cần bộ lập lịch ngoài (đã có container `scheduler` trong demo; production dùng `pg_cron`/cron). Chi tiết xem business_rules.md, mục "Tổng hợp mức độ thực thi".
 
 ### 1.2. Quy tắc nghiệp vụ & ràng buộc (Business Rules & Constraints)
 
@@ -486,7 +486,7 @@ Phân loại cơ chế: **Khai báo** (`PRIMARY KEY`, `UNIQUE`, `CHECK`, `FOREIG
 | **BR-07** | Kích hoạt Hợp đồng | Hợp đồng chỉ được chuyển sang `Active` khi đã có hóa đơn `Completed`; ngược lại, khi hóa đơn chuyển `Completed` thì hợp đồng `Pending` được tự kích hoạt. | `trg_require_payment_before_active` (`BEFORE INSERT OR UPDATE OF sub_status ON member_subscription`, hàm `trg_fn_require_payment_before_active`) chặn kích hoạt khi chưa thanh toán; `trg_activate_on_payment_insert` / `trg_activate_on_payment_update` (`AFTER ... ON billing_log`, hàm `trg_fn_activate_on_payment`) kích hoạt sau thanh toán. Miền giá trị: `chk_subscription_status`. |
 | **BR-08** | Duy nhất Hóa đơn Chu kỳ | Mỗi chu kỳ tính phí của một hợp đồng chỉ có tối đa 1 hóa đơn còn hiệu lực (`Pending`/`Completed`); hóa đơn `Failed`/`Refunded` không chiếm chu kỳ nên được phát hành lại. | Chỉ mục duy nhất từng phần `uq_billing_subscription_period ON billing_log (subscription_id, billing_period_start) WHERE payment_status IN ('Pending', 'Completed')`; cột `billing_period_start DATE NOT NULL`; trigger `trg_fill_billing_period_start` (`BEFORE INSERT`) mặc định chu kỳ là ngày bắt đầu hợp đồng nếu không nêu. |
 | **BR-09** | Hóa đơn Thanh toán Hợp lệ | Mỗi hóa đơn phải có `invoice_no` duy nhất, số tiền lớn hơn 0, phương thức và trạng thái thuộc miền giá trị cho phép. | `uq_billing_invoice_no` (`UNIQUE`), `chk_billing_amount` (`amount > 0`), `chk_billing_method`, `chk_billing_status` (`CHECK`); `fk_billing_subscription ... ON DELETE RESTRICT`. |
-| **BR-10** | Dữ liệu Thanh toán Bất biến | Hóa đơn thanh toán là nhật ký bất biến: không được xóa; hóa đơn `Completed` chỉ được chuyển sang `Refunded`, mọi cột khác giữ nguyên; hóa đơn `Failed`/`Refunded` là trạng thái cuối. | Ba trigger trên `billing_log`: `trg_billing_immutable_update` (`BEFORE UPDATE`), `trg_billing_immutable_delete` (`BEFORE DELETE`), `trg_billing_immutable_truncate` (`BEFORE TRUNCATE`) áp dụng cả với chủ sở hữu/superuser; **cộng** quyền hạn chế trong `08_rbac_security.sql`: mọi role ứng dụng (kể cả `gym_role_admin`) chỉ có `SELECT, INSERT` trên `billing_log` (`REVOKE UPDATE, DELETE ON billing_log FROM gym_role_admin`), không role nào có `TRUNCATE`. Hạn chế: chủ sở hữu bảng vẫn có thể `ALTER TABLE ... DISABLE TRIGGER` có chủ đích (thao tác DDL để lại dấu vết). |
+| **BR-10** | Dữ liệu Thanh toán Bất biến | Hóa đơn thanh toán là nhật ký bất biến: không được xóa; hóa đơn `Completed` chỉ được chuyển sang `Refunded`, mọi cột khác giữ nguyên; hóa đơn `Failed`/`Refunded` là trạng thái cuối. | Bốn lớp bảo vệ. (1) Ba trigger trên `billing_log`: `trg_billing_immutable_update` (`BEFORE UPDATE`), `trg_billing_immutable_delete` (`BEFORE DELETE`), `trg_billing_immutable_truncate` (`BEFORE TRUNCATE`) chặn mọi người dùng. (2) Phân quyền trong `08_rbac_security.sql`: mọi role ứng dụng (kể cả `gym_role_admin`) chỉ có `SELECT, INSERT` trên `billing_log` (`REVOKE UPDATE, DELETE ON billing_log FROM gym_role_admin`), không role nào có `TRUNCATE` (lỗi `42501`). (3) Mọi đối tượng ứng dụng thuộc role `NOLOGIN` `gym_owner`; không tài khoản đăng nhập nào là chủ sở hữu hay thành viên của role này nên không thể `ALTER`/`DROP` `billing_log` hay vô hiệu hóa trigger. (4) Event trigger `evt_protect_billing_log` (`ddl_command_end`) và `evt_protect_billing_log_drop` (`sql_drop`) chặn `ALTER TABLE`, `DROP TABLE`, `DROP`/`ALTER TRIGGER` trên `billing_log` và việc sửa/xóa các hàm trigger bất biến (lỗi `P0001` chứa `BR-10`), kể cả với superuser. **Giới hạn còn lại (cố hữu):** superuser là gốc tin cậy của mọi DBMS nên vẫn có thể bảo trì có chủ đích bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`; thao tác này phải tường minh và để lại dấu vết. |
 | **BR-11** | Định danh Huấn luyện viên | Mỗi huấn luyện viên có `user_id` duy nhất; `phone` và `email` duy nhất; điểm đánh giá trong khoảng 0–5. | `trainer_profile.user_id` là `PRIMARY KEY` + `fk_trainer_profile_user`; email/phone duy nhất nhờ `uq_user_account_email`, `uq_user_account_phone` trên `user_account` (HLV là một tài khoản); `chk_trainer_rating` (`current_rating BETWEEN 0 AND 5`). |
 | **BR-12** | Không Trùng lịch HLV | Một HLV không được có 2 lịch (lớp nhóm hoặc ca PT) chồng chéo khoảng thời gian. | Cùng bảng: `ex_class_trainer_no_overlap` (`EXCLUDE USING gist` trên `class_schedule`) và `ex_pt_trainer_no_overlap` (trên `pt_booking`, bỏ qua ca `Cancelled`/`Late_Cancelled`); xuyên bảng lớp ↔ PT: trigger `trg_check_class_schedule_conflicts` và `trg_check_pt_booking_conflicts` (code lỗi nghiệp vụ BR-12). Cần extension `btree_gist`. |
 | **BR-13** | Giới hạn Sức chứa Phòng | Mỗi `PHÒNG TẬP / KHU VỰC` (`FACILITIES_ROOM`) có sức chứa tối đa dương (`max_capacity > 0`). | `chk_facilities_capacity` (`CHECK`); `chk_facilities_status` giới hạn trạng thái phòng. |
@@ -499,18 +499,19 @@ Phân loại cơ chế: **Khai báo** (`PRIMARY KEY`, `UNIQUE`, `CHECK`, `FOREIG
 | **BR-20** | Nhật ký Bảo trì Hợp lệ | Mỗi `NHẬT KÝ BẢO TRÌ` có chi phí không âm (`cost >= 0`) và thời gian hoàn thành (nếu có) không trước thời gian bắt đầu; người thực hiện phải là nhân viên. | `chk_maintenance_cost`, `chk_maintenance_time` (`end_time IS NULL OR end_time >= start_time`), `chk_maintenance_status` (`CHECK`); `fk_maintenance_staff` → `staff_profile`, `fk_maintenance_equipment`. |
 | **BR-21** | Chống Đụng Máy tập | Một thiết bị không được bị giữ chỗ trùng khung giờ; lượt giữ chỗ phải thuộc đúng một nguồn (ca PT hoặc lớp), nằm trong khung giờ của ca/lớp đó và không trùng ca bảo trì đang diễn ra. | `ex_reservation_equipment_no_overlap` (`EXCLUDE USING gist`, bỏ qua lượt `Cancelled`); `chk_reservation_source` (đúng một trong `booking_id`/`class_id`); trigger `trg_check_reservation_window` (`BEFORE INSERT OR UPDATE ON equipment_reservation`) kiểm tra khung giờ ca/lớp và bảo trì `In_Progress`. |
 | **BR-22** | Phân quyền RBAC | Một tài khoản có thể có một hoặc nhiều vai trò (Admin, Receptionist, Trainer, Technician, Member); quyền thao tác được cấp theo vai trò và theo nguyên tắc đặc quyền tối thiểu. | Mô hình ứng dụng: `role`, `user_role` (`pk_user_role (user_id, role_id)`), `permission`, `role_permission`. Mức CSDL (`08_rbac_security.sql`): 5 role nhóm `gym_role_admin`, `gym_role_receptionist`, `gym_role_trainer`, `gym_role_technician`, `gym_role_member` (`NOLOGIN`), 5 tài khoản mẫu `gym_u_*`; `REVOKE ALL ... FROM PUBLIC` rồi `GRANT` tối thiểu theo ma trận quyền; `GRANT` mức cột (ẩn `password_hash`); hàm trigger `SECURITY DEFINER SET search_path = public, pg_temp`. Hạn chế: bảng `role_permission` là dữ liệu ma trận cho ứng dụng, còn `GRANT` được viết tay tương ứng, hai nơi không tự đồng bộ. |
-| **BR-23** | Vết Truy xuất Giao dịch | Mọi giao dịch tạo mới (hợp đồng, hóa đơn, lịch lớp, ca PT, nhật ký bảo trì) phải ghi nhận người thực hiện vào `created_by_user_id`. | Cột `created_by_user_id INT` với khóa ngoại (`fk_subscription_created_by`, `fk_billing_created_by`, `fk_class_created_by`, `fk_booking_created_by`, `fk_maintenance_created_by`) trên 5 bảng; trigger `trg_fill_created_by` (`BEFORE INSERT`, hàm `trg_fn_fill_created_by`) điền cột từ biến phiên `app.current_user_id` (`SET [LOCAL] app.current_user_id = '<user_id>'`). **Thực thi một phần:** cột cho phép `NULL` (dữ liệu cũ, tác vụ hệ thống như `sp_process_subscription_renewals` không có người dùng), chỉ được điền khi ứng dụng đặt biến phiên, và chỉ ghi lúc `INSERT` (không có nhật ký cho `UPDATE`). |
+| **BR-23** | Vết Truy xuất Giao dịch | Mọi giao dịch tạo mới (hợp đồng, hóa đơn, lịch lớp, ca PT, nhật ký bảo trì) phải ghi nhận người thực hiện vào `created_by_user_id`. | Cột `created_by_user_id INT NOT NULL` và `updated_by_user_id INT NULL`, `updated_at TIMESTAMP NULL`, mỗi cột người dùng có khóa ngoại tới `user_account` (`fk_subscription_created_by`/`_updated_by`, `fk_billing_*`, `fk_class_*`, `fk_booking_*`, `fk_maintenance_*`) trên 5 bảng. Trigger `trg_fill_created_by` (`BEFORE INSERT`, hàm `trg_fn_fill_created_by`) điền `created_by_user_id` từ biến phiên `app.current_user_id` và **từ chối** (lỗi `P0001`, `BR-23`) nếu biến chưa được đặt; trigger `trg_set_updated_by` (`BEFORE UPDATE`, hàm `trg_fn_set_updated_by`) luôn ghi `updated_by_user_id`/`updated_at` từ phiên và cấm đổi `created_by_user_id`. Mọi chương trình ghi dữ liệu phải `SET [LOCAL] app.current_user_id = '<user_id>'` (ứng dụng làm việc này trong `db_tx`; bộ lập lịch qua `PGOPTIONS`, biến `SCHEDULER_ACTOR_USER_ID`, mặc định 3; các script test đặt ở đầu tập tin). **Thực thi đầy đủ ở CSDL:** gọi `sp_process_subscription_renewals` hay chạy DML thủ công mà không đặt biến phiên sẽ bị từ chối theo thiết kế. |
 | **BR-24** | Tự động Gia hạn & Ân hạn | Hợp đồng tự gia hạn (`is_recurring = TRUE`) khi quá hạn sẽ phát sinh hóa đơn gia hạn `Pending`; nếu quá thời gian ân hạn (mặc định 3 ngày) chưa thanh toán thì chuyển `Suspended`; hợp đồng không tự gia hạn quá hạn chuyển `Expired`. Khi hóa đơn gia hạn được thanh toán, hợp đồng được cộng thêm `duration_days`, đặt lại số buổi PT và kích hoạt lại. | Thủ tục `sp_process_subscription_renewals(p_as_of DATE DEFAULT CURRENT_DATE, p_grace_days INT DEFAULT 3)` (idempotent) được **bộ lập lịch bên ngoài gọi định kỳ**: trong Docker demo là service `scheduler` (container `fitzone_renewal_scheduler`, image `postgres:16-alpine`, vòng lặp shell chạy ngay khi khởi động rồi lặp lại mỗi `RENEWAL_INTERVAL_SECONDS` giây, mặc định 86400, đăng nhập bằng `gym_u_reception` có `EXECUTE`); trong production dùng `pg_cron` hoặc cron của hệ điều hành (ví dụ `SELECT cron.schedule('gym-renewals', '5 0 * * *', 'CALL sp_process_subscription_renewals()')`). Phần thanh toán gia hạn do `trg_activate_on_payment_insert/_update`. Lưu ý: PostgreSQL không có bộ lập lịch tích hợp, nên quy tắc theo thời gian chỉ chạy khi bộ lập lịch bên ngoài đang hoạt động. |
 | **BR-25** | Chính sách Hủy Ca PT | Buổi PT chỉ bị trừ khi hoàn thành, không trừ lúc đặt lịch. Hủy sớm (còn từ 24 giờ trở lên) → `Cancelled`, **không trừ** buổi. Hủy muộn (còn dưới 24 giờ) → `Late_Cancelled` và **bị trừ** 1 buổi. Bỏ tập (`No_Show`) và `Completed` cũng bị trừ 1 buổi; chuyển giữa các trạng thái tính phí không trừ lần hai. | `trg_late_cancel_pt_booking` (`BEFORE UPDATE OF status ON pt_booking`, hàm `trg_fn_late_cancel_pt_booking`) đổi `Cancelled` thành `Late_Cancelled` khi hủy ca `Scheduled` còn dưới 24 giờ; `trg_update_remaining_pt_sessions` trừ `remaining_sessions` khi ca chuyển sang `Completed`/`No_Show`/`Late_Cancelled`; `chk_pt_booking_status` (miền trạng thái gồm `Late_Cancelled`). |
 | **BR-26** | Theo dõi Khấu hao Thiết bị | Mỗi thiết bị phải ghi nhận ngày đưa vào sử dụng (`purchase_date`) và thời gian khấu hao dự kiến theo tháng (`depreciation_months > 0`). | `purchase_date DATE NOT NULL`; `chk_equipment_depreciation` (`CHECK`); `uq_equipment_serial` (`UNIQUE (serial_number)`); `chk_equipment_status`. |
 
 #### 1.2.1. Tổng hợp mức độ thực thi
 
-- **Thực thi đầy đủ ở CSDL:** BR-01 đến BR-21, BR-22 (mức CSDL), BR-25, BR-26 (BR-19 gồm cả chiều chặn chuyển sang bảo trì khi còn lịch tương lai và đồng bộ trạng thái thiết bị theo `maintenance_log`).
+- **Thực thi đầy đủ ở CSDL:** BR-01 đến BR-23 (BR-10 với bốn lớp bảo vệ; BR-19 gồm cả chiều chặn chuyển sang bảo trì khi còn lịch tương lai và đồng bộ trạng thái thiết bị theo `maintenance_log`; BR-22 ở mức CSDL; BR-23 bắt buộc `created_by_user_id` và ghi vết `UPDATE`), BR-25, BR-26.
 - **Thực thi đầy đủ khi có bộ lập lịch ngoài:** BR-24 (logic nằm trong thủ tục; demo Docker có container `scheduler` gọi hằng ngày, production dùng `pg_cron`/cron).
-- **Thực thi một phần (nêu rõ giới hạn trong bảng):**
-  - **BR-10:** trigger chặn mọi người dùng, nhưng chủ sở hữu bảng có thể chủ động `DISABLE TRIGGER`.
-  - **BR-23:** phụ thuộc ứng dụng đặt `app.current_user_id`; cột cho phép `NULL`; không ghi vết `UPDATE`.
+- **Các lưu ý còn lại (không phải quy tắc thực thi một phần):**
+  - **Superuser là gốc tin cậy** của mọi DBMS: với BR-10 chỉ superuser mới tắt được event trigger (`ALTER EVENT TRIGGER ... DISABLE`) hoặc đặt `app.allow_billing_maintenance = 'on'`, thao tác tường minh và để lại dấu vết. Chạy lại `04_triggers_views.sql` trên CSDL đã có event trigger cũng cần lối thoát này.
+  - **BR-22:** bảng `role_permission` (dữ liệu ma trận cho ứng dụng) và các lệnh `GRANT` được viết tay tương ứng, không tự đồng bộ.
+  - **BR-23:** mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`; chạy thủ công cần `SET app.current_user_id = '<id>'` trước.
 
 ## 2. Thiết kế cơ sở dữ liệu (Database Design – ISO/IEC 19505 / IE Standards)
 
@@ -613,9 +614,9 @@ Gạch chân/(PK) là khóa; (D) là thuộc tính dẫn xuất.
 | PERFORMS | STAFF – MAINTENANCE_LOG | 1:N | MAINTENANCE_LOG toàn phần | BR-20 |
 | RESERVED_FOR | EQUIPMENT – EQUIPMENT_RESERVATION | 1:N | RESERVATION toàn phần | BR-21 (`ex_reservation_equipment_no_overlap`) |
 | FOR_BOOKING / FOR_CLASS | PT_BOOKING (hoặc CLASS_SCHEDULE) – EQUIPMENT_RESERVATION | 1:N, **loại trừ XOR** | riêng phần | BR-21, `chk_reservation_source` |
-| CREATED_BY | USER_ACCOUNT – {MEMBER_SUBSCRIPTION, BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG} | 1:N | riêng phần (cột `created_by_user_id` cho phép NULL) | BR-23 |
+| CREATED_BY / UPDATED_BY | USER_ACCOUNT – {MEMBER_SUBSCRIPTION, BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG} | 1:N (mỗi quan hệ 2 khóa ngoại) | CREATED_BY toàn phần (`created_by_user_id` NOT NULL); UPDATED_BY riêng phần (`updated_by_user_id` cho phép NULL, kèm `updated_at`) | BR-23 |
 
-Quan hệ CREATED_BY (5 quan hệ cùng mẫu) không vẽ thành đường trên sơ đồ EER để tránh rối; chúng được ghi trong hộp chú thích màu tím cạnh USER_ACCOUNT và thể hiện đầy đủ ở sơ đồ vật lý (5 khóa ngoại `fk_*_created_by`).
+Quan hệ CREATED_BY/UPDATED_BY (5 cặp quan hệ cùng mẫu) không vẽ thành đường trên sơ đồ EER để tránh rối; chúng được ghi trong hộp chú thích màu tím cạnh USER_ACCOUNT và thể hiện đầy đủ ở sơ đồ vật lý (10 khóa ngoại `fk_*_created_by` và `fk_*_updated_by`).
 
 ##### Cung loại trừ (Exclusive arc) của EQUIPMENT_RESERVATION
 
@@ -655,7 +656,7 @@ Mục này trình bày 18 lược đồ quan hệ thu được sau khi ánh xạ
 - `FK` = khóa ngoại, ghi dạng `thuộc_tính --> BẢNG(thuộc_tính)` kèm hành động `ON DELETE`.
 - `AK` = khóa phụ / khóa dự tuyển (UNIQUE). Chỉ mục duy nhất **một phần** (partial UNIQUE) được ghi riêng là `UNIQUE (…) WHERE …` vì không phải khóa dự tuyển trên toàn bộ bản ghi.
 - `EXCLUDE` = ràng buộc loại trừ chồng lấn khoảng thời gian (GiST, cần extension `btree_gist`); `CHECK` = ràng buộc miền / liên thuộc tính.
-- Các khóa ngoại `created_by_user_id` (BR-23) là thuộc tính vết kiểm toán, cho phép `NULL`, trỏ về `USER_ACCOUNT` (người thực hiện thao tác bất kỳ vai trò nào).
+- Các khóa ngoại `created_by_user_id` (`NOT NULL`) và `updated_by_user_id` (cho phép `NULL`, kèm `updated_at`) (BR-23) là thuộc tính vết kiểm toán, trỏ về `USER_ACCOUNT` (người thực hiện thao tác bất kỳ vai trò nào); mọi lần tạo/sửa dữ liệu giao dịch đều gắn với một người dùng.
 
 #### Phân hệ Tài khoản & Phân quyền RBAC
 
@@ -687,16 +688,18 @@ Mục này trình bày 18 lược đồ quan hệ thu được sau khi ánh xạ
 
 - **MEMBERSHIP_PLAN** (<u>plan_id</u>, plan_name, duration_days, total_sessions, price, description)
   - CHECK: `duration_days > 0`, `total_sessions >= 0`, `price >= 0`
-- **MEMBER_SUBSCRIPTION** (<u>subscription_id</u>, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id)
+- **MEMBER_SUBSCRIPTION** (<u>subscription_id</u>, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id, updated_by_user_id, updated_at)
   - FK: `member_user_id --> MEMBER_PROFILE(user_id)` ON DELETE RESTRICT (`fk_subscription_member`)
   - FK: `plan_id --> MEMBERSHIP_PLAN(plan_id)` ON DELETE RESTRICT
   - FK: `created_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_subscription_created_by`)
+  - FK: `updated_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_subscription_updated_by`)
   - AK (siêu khóa phục vụ khóa ngoại ghép): `(subscription_id, member_user_id)` (`uq_subscription_member`)
   - UNIQUE một phần: `(member_user_id) WHERE sub_status = 'Active'` (`uq_member_one_active_subscription`, BR-05)
   - CHECK: `actual_price >= 0`, `remaining_sessions >= 0`, `end_time >= start_time`, `sub_status IN ('Pending','Active','Expired','Suspended','Cancelled')`
-- **BILLING_LOG** (<u>billing_id</u>, subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status, created_at, created_by_user_id)
+- **BILLING_LOG** (<u>billing_id</u>, subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status, created_at, created_by_user_id, updated_by_user_id, updated_at)
   - FK: `subscription_id --> MEMBER_SUBSCRIPTION(subscription_id)` ON DELETE RESTRICT
   - FK: `created_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_billing_created_by`)
+  - FK: `updated_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_billing_updated_by`)
   - AK: `invoice_no` (`uq_billing_invoice_no`)
   - UNIQUE một phần: `(subscription_id, billing_period_start) WHERE payment_status IN ('Pending','Completed')` (`uq_billing_subscription_period`, BR-08). **Không** phải khóa dự tuyển vì hóa đơn `Failed`/`Refunded` được phép lặp chu kỳ.
   - CHECK: `amount > 0`, `payment_method IN ('Cash','Credit_Card','Banking','E_Wallet')`, `payment_status IN ('Pending','Completed','Failed','Refunded')`
@@ -705,10 +708,11 @@ Mục này trình bày 18 lược đồ quan hệ thu được sau khi ánh xạ
 
 - **FACILITIES_ROOM** (<u>room_id</u>, room_name, max_capacity, room_type, status)
   - CHECK: `max_capacity > 0`, `status IN ('Active','Under_Maintenance','Inactive')`
-- **CLASS_SCHEDULE** (<u>class_id</u>, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled, created_by_user_id)
+- **CLASS_SCHEDULE** (<u>class_id</u>, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled, created_by_user_id, updated_by_user_id, updated_at)
   - FK: `trainer_user_id --> TRAINER_PROFILE(user_id)` ON DELETE RESTRICT
   - FK: `room_id --> FACILITIES_ROOM(room_id)` ON DELETE RESTRICT
   - FK: `created_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_class_created_by`)
+  - FK: `updated_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_class_updated_by`)
   - EXCLUDE: `(trainer_user_id WITH =, tsrange(start_time, end_time, '[)') WITH &&)` (`ex_class_trainer_no_overlap`)
   - EXCLUDE: `(room_id WITH =, tsrange(start_time, end_time, '[)') WITH &&)` (`ex_class_room_no_overlap`)
   - CHECK: `end_time > start_time`, `max_capacity > 0`, `current_enrolled >= 0`, `current_enrolled <= max_capacity`
@@ -717,12 +721,13 @@ Mục này trình bày 18 lược đồ quan hệ thu được sau khi ánh xạ
   - FK: `class_id --> CLASS_SCHEDULE(class_id)` ON DELETE CASCADE
   - AK: `(subscription_id, class_id)` (`uq_enrollment_subscription_class`)
   - CHECK: `status IN ('Enrolled','Cancelled','Attended')`
-- **PT_BOOKING** (<u>booking_id</u>, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id)
+- **PT_BOOKING** (<u>booking_id</u>, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
   - FK: `member_user_id --> MEMBER_PROFILE(user_id)` ON DELETE RESTRICT (`fk_booking_member`)
   - FK: `trainer_user_id --> TRAINER_PROFILE(user_id)` ON DELETE RESTRICT (`fk_booking_trainer`)
   - FK: `subscription_id --> MEMBER_SUBSCRIPTION(subscription_id)` ON DELETE RESTRICT (`fk_booking_subscription`)
   - FK ghép: `(subscription_id, member_user_id) --> MEMBER_SUBSCRIPTION(subscription_id, member_user_id)` ON DELETE RESTRICT (`fk_booking_subscription_member`), bảo đảm ca PT luôn ghi đúng chủ hợp đồng
   - FK: `created_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_booking_created_by`)
+  - FK: `updated_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_booking_updated_by`)
   - EXCLUDE: `(trainer_user_id WITH =, tsrange(start_time, end_time, '[)') WITH &&) WHERE (status NOT IN ('Cancelled','Late_Cancelled'))` (`ex_pt_trainer_no_overlap`)
   - EXCLUDE: `(member_user_id WITH =, tsrange(start_time, end_time, '[)') WITH &&) WHERE (status NOT IN ('Cancelled','Late_Cancelled'))` (`ex_pt_member_no_overlap`)
   - CHECK: `end_time > start_time`, `booking_date = start_time::DATE` (`chk_pt_booking_date`), `status IN ('Scheduled','Completed','Cancelled','Late_Cancelled','No_Show')`
@@ -739,10 +744,11 @@ Mục này trình bày 18 lược đồ quan hệ thu được sau khi ánh xạ
   - FK: `class_id --> CLASS_SCHEDULE(class_id)` ON DELETE CASCADE (cho phép NULL)
   - EXCLUDE: `(equipment_id WITH =, tsrange(start_time, end_time, '[)') WITH &&) WHERE (status <> 'Cancelled')` (`ex_reservation_equipment_no_overlap`)
   - CHECK: `end_time > start_time`, `status IN ('Reserved','Completed','Cancelled')`, đúng một trong `booking_id`, `class_id` khác NULL (`chk_reservation_source`)
-- **MAINTENANCE_LOG** (<u>maintenance_id</u>, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status, created_at, created_by_user_id)
+- **MAINTENANCE_LOG** (<u>maintenance_id</u>, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
   - FK: `equipment_id --> EQUIPMENT(equipment_id)` ON DELETE RESTRICT
   - FK: `staff_user_id --> STAFF_PROFILE(user_id)` ON DELETE RESTRICT
   - FK: `created_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_maintenance_created_by`)
+  - FK: `updated_by_user_id --> USER_ACCOUNT(user_id)` ON DELETE RESTRICT (`fk_maintenance_updated_by`)
   - CHECK: `cost >= 0`, `status IN ('In_Progress','Completed','Cancelled')`, `end_time IS NULL OR end_time >= start_time`
 
 ### 2.3. Chứng minh Chuẩn hóa Dữ liệu (Normalization Verification: 1NF -> 3NF/BCNF)
@@ -800,7 +806,7 @@ Mục này chứng minh hình thức (formal proof) dạng chuẩn của **từn
 
 > **Bổ đề 3 (các cột và ràng buộc bổ sung của lược đồ hiện hành).** Ba nhóm thay đổi sau không làm đổi tập FD của bất kỳ bảng nào:
 
-1. **Cột `created_by_user_id`** (5 bảng: `member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`; BR-23) là thuộc tính khóa ngoại trỏ về `user_account`, cho phép `NULL`, mang ý nghĩa vết kiểm toán *"ai đã thực hiện thao tác"*. Giá trị do trigger `trg_fill_created_by` điền từ biến phiên, không suy ra được từ bất kỳ thuộc tính nào khác (ví dụ lễ tân tạo hợp đồng không xác định bởi `member_user_id` hay `plan_id`). Vì vậy chỉ có FD tầm thường kiểu khóa `K → created_by_user_id` với `K` là khóa dự tuyển, bảng giữ nguyên dạng chuẩn. Tương tự `created_at` (mặc định `CURRENT_TIMESTAMP`) chỉ phụ thuộc vào khóa.
+1. **Cột `created_by_user_id`** (5 bảng: `member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log`; BR-23) là thuộc tính khóa ngoại trỏ về `user_account` (`NOT NULL`: mọi dòng bắt buộc có người tạo), mang ý nghĩa vết kiểm toán *"ai đã thực hiện thao tác"*. Giá trị do trigger `trg_fill_created_by` điền từ biến phiên, không suy ra được từ bất kỳ thuộc tính nào khác (ví dụ lễ tân tạo hợp đồng không xác định bởi `member_user_id` hay `plan_id`). Vì vậy chỉ có FD tầm thường kiểu khóa `K → created_by_user_id` với `K` là khóa dự tuyển, bảng giữ nguyên dạng chuẩn. Tương tự `created_at` (mặc định `CURRENT_TIMESTAMP`) chỉ phụ thuộc vào khóa. Cặp cột `updated_by_user_id` (FK, cho phép `NULL`) và `updated_at` do trigger `trg_set_updated_by` ghi cũng là thuộc tính vết kiểm toán chỉ phụ thuộc khóa: không sinh FD mới, không phá chuẩn (một dòng một người sửa gần nhất).
 2. **Miền giá trị trạng thái** (`CHECK ... IN (...)`), gồm cả bổ sung `'Late_Cancelled'` cho `pt_booking.status` (BR-25) và `'E_Wallet'` cho `billing_log.payment_method`: ràng buộc miền một thuộc tính **không phải là FD**, nên không ảnh hưởng đến 2NF/3NF/BCNF.
 3. **Chỉ mục duy nhất một phần** (`uq_member_one_active_subscription`, `uq_billing_subscription_period`): chỉ ràng buộc một *tập con* bản ghi. Theo định nghĩa, khóa dự tuyển phải xác định duy nhất **mọi** bộ của quan hệ, nên chỉ mục duy nhất một phần **không** là khóa dự tuyển (xem chi tiết ở mục (10) và (11)). ∎
 
@@ -908,12 +914,12 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - **FD bị loại trừ:** `duration_days ↛ price` (gói 30 ngày thường và gói 30 ngày dành cho sinh viên có giá khác nhau); `total_sessions ↛ price`.
 - **Khóa dự tuyển:** `{plan_id}` ⇒ **BCNF**. ∎
 
-###### (10) MEMBER_SUBSCRIPTION(<u>subscription_id</u>, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id)
+###### (10) MEMBER_SUBSCRIPTION(<u>subscription_id</u>, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
-- **FD:** `subscription_id → member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id`. Khóa ngoại `member_user_id` trỏ về `member_profile` (không phải `user_account`); `created_by_user_id` là FK vết kiểm toán, không tạo FD mới (Bổ đề 3).
+- **FD:** `subscription_id → member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id, updated_by_user_id, updated_at`. Khóa ngoại `member_user_id` trỏ về `member_profile` (không phải `user_account`); `created_by_user_id` là FK vết kiểm toán, không tạo FD mới (Bổ đề 3).
 - **FD bị loại trừ:** đây là bảng dễ bị nghi ngờ có phụ thuộc bắc cầu qua `plan_id` nhất, nên nhóm xét từng trường hợp:
 
-*Bảng 2-10. (10) MEMBER_SUBSCRIPTION(subscription_id, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id)*
+*Bảng 2-10. (10) MEMBER_SUBSCRIPTION(subscription_id, member_user_id, plan_id, actual_price, remaining_sessions, start_time, end_time, sub_status, is_recurring, created_at, created_by_user_id, updated_by_user_id, updated_at)*
 
 | FD giả định | Vì sao KHÔNG đúng |
 | --- | --- |
@@ -926,7 +932,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - `uq_member_one_active_subscription` (UNIQUE một phần trên `member_user_id WHERE sub_status = 'Active'`, BR-05) cũng **không phải khóa dự tuyển**: một hội viên có nhiều hợp đồng ở trạng thái khác `Active`, nên `member_user_id` không xác định duy nhất mọi bộ. Nó là ràng buộc nghiệp vụ trên tập con bản ghi, không sinh FD `member_user_id → …` trên toàn bảng.
 - **Khóa dự tuyển:** `{subscription_id}` ⇒ **BCNF**. ∎
 
-###### (11) BILLING_LOG(<u>billing_id</u>, subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status, created_at, created_by_user_id)
+###### (11) BILLING_LOG(<u>billing_id</u>, subscription_id, billing_period_start, invoice_no, amount, payment_date, payment_method, payment_status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
 - **FD:** `billing_id → *`; `invoice_no → billing_id` (`UNIQUE uq_billing_invoice_no`, BR-09).
 - **FD bị loại trừ:** `subscription_id ↛ amount` (một hợp đồng có nhiều kỳ thanh toán với số tiền khác nhau).
@@ -934,7 +940,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
   - Khóa dự tuyển đòi hỏi `K → toàn bộ thuộc tính` đúng với **mọi** bộ của quan hệ. Ở đây mệnh đề `WHERE` loại các hóa đơn `Failed` và `Refunded` ra khỏi ràng buộc: một chu kỳ có thể có hóa đơn `Failed` (thanh toán lỗi) rồi hóa đơn `Completed` phát hành lại, hoặc `Completed` rồi `Refunded`, tức là **nhiều bộ cùng `(subscription_id, billing_period_start)`** nhưng khác `billing_id`, `invoice_no`, `amount`, `payment_status`. Do đó FD `{subscription_id, billing_period_start} → billing_id` **không đúng** trên toàn bảng và ta không được thêm nó vào tập `F`.
   - Hệ quả với dạng chuẩn: vì không có FD mới nào, tập `F` vẫn chỉ gồm các FD có vế trái là `billing_id` hoặc `invoice_no`, nên **BCNF vẫn đạt**. Ràng buộc này thuộc loại *ràng buộc toàn vẹn nghiệp vụ có điều kiện* (conditional uniqueness), được DBMS thực thi hiệu quả bằng partial unique index.
   - Thuộc tính `billing_period_start` (NOT NULL, do trigger `trg_fill_billing_period_start` mặc định bằng `start_time::DATE` của hợp đồng) chỉ phụ thuộc vào khóa; `subscription_id ↛ billing_period_start` vì một hợp đồng có nhiều chu kỳ.
-  - Cột `created_by_user_id` là FK vết kiểm toán, không tạo FD (Bổ đề 3). Miền `payment_status` (4 giá trị) và `payment_method` (4 giá trị gồm `E_Wallet`) là ràng buộc miền, không phải FD.
+  - Cột `created_by_user_id`, `updated_by_user_id`, `updated_at` là FK/thuộc tính vết kiểm toán, không tạo FD (Bổ đề 3). Miền `payment_status` (4 giá trị) và `payment_method` (4 giá trị gồm `E_Wallet`) là ràng buộc miền, không phải FD.
 - **Khóa dự tuyển:** `{billing_id}`, `{invoice_no}`. Mọi vế trái đều là khóa ⇒ **BCNF**. ∎
 
 ##### D. Phân hệ Cơ sở vật chất & Lịch tập
@@ -951,7 +957,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - **FD bị loại trừ:** `equipment_name ↛ depreciation_months` (cùng model máy, mua ở các thời điểm khác nhau có thể áp dụng chính sách khấu hao khác nhau).
 - **Khóa dự tuyển:** `{equipment_id}`, `{serial_number}` ⇒ **BCNF**. ∎
 
-###### (14) CLASS_SCHEDULE(<u>class_id</u>, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled, created_by_user_id)
+###### (14) CLASS_SCHEDULE(<u>class_id</u>, trainer_user_id, room_id, class_name, start_time, end_time, max_capacity, current_enrolled, created_by_user_id, updated_by_user_id, updated_at)
 
 - **FD:**
   - F1: `class_id → *` (PK)
@@ -982,7 +988,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 - **1NF với cặp khóa ngoại loại trừ nhau:** `booking_id` và `class_id` là hai thuộc tính đơn trị có thể `NULL` (*exclusive arc*). `CHECK chk_reservation_source` bảo đảm đúng một trong hai có giá trị. `NULL` không phải giá trị đa trị nên không vi phạm 1NF.
 - **Khóa dự tuyển:** `{reservation_id}` ⇒ **BCNF**. ∎
 
-###### (18) MAINTENANCE_LOG(<u>maintenance_id</u>, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status, created_at, created_by_user_id)
+###### (18) MAINTENANCE_LOG(<u>maintenance_id</u>, equipment_id, staff_user_id, issue_description, start_time, end_time, cost, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
 - **FD:** `maintenance_id → *` (gồm `created_by_user_id`, FK vết kiểm toán; Bổ đề 3). `staff_user_id` trỏ về `staff_profile`.
 - **FD bị loại trừ:** `equipment_id ↛ staff_user_id` (mỗi lần bảo trì có thể do kỹ thuật viên khác xử lý); `{equipment_id, start_time}` không được khai báo `UNIQUE` nên không phải khóa.
@@ -990,7 +996,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 
 #### 2.3.4. Phân tích bảng PT_BOOKING (chỉ đạt 2NF) và quyết định thiết kế
 
-**PT_BOOKING**(<u>booking_id</u>, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id)
+**PT_BOOKING**(<u>booking_id</u>, member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 
 ##### Tập phụ thuộc hàm
 
@@ -998,7 +1004,7 @@ Ba bảng dưới đây là kết quả ánh xạ quan hệ chuyên biệt hóa 
 
 | FD | Nguồn gốc |
 | --- | --- |
-| F1: `booking_id → member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id` | Khóa chính |
+| F1: `booking_id → member_user_id, trainer_user_id, subscription_id, booking_date, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at` | Khóa chính |
 | F2: `subscription_id → member_user_id` | Mỗi hợp đồng thuộc đúng một hội viên. FD này được kéo theo từ `member_subscription`, nơi `subscription_id` là khóa. |
 | F3: `start_time → booking_date` | `booking_date = start_time::DATE`. FD này **được DBMS bảo đảm** bởi `chk_pt_booking_date CHECK (booking_date = start_time::DATE)`; mọi bản ghi (hiện có và tương lai) đều thỏa. |
 
@@ -1068,7 +1074,7 @@ Nhóm chọn **Cách 3** vì: (i) không phải sửa lệnh `INSERT` của dữ
 
 Nếu áp dụng chuẩn hóa tuyệt đối, phân rã `PT_BOOKING` theo F2 và F3:
 
-- **PT_BOOKING_BCNF**(<u>booking_id</u>, trainer_user_id, subscription_id, start_time, end_time, status, created_at, created_by_user_id)
+- **PT_BOOKING_BCNF**(<u>booking_id</u>, trainer_user_id, subscription_id, start_time, end_time, status, created_at, created_by_user_id, updated_by_user_id, updated_at)
 - `member_user_id` lấy qua phép nối với **MEMBER_SUBSCRIPTION**(<u>subscription_id</u>, member_user_id, …), vốn đã đạt BCNF;
 - `booking_date` tính bằng biểu thức `start_time::DATE`.
 **Chứng minh phân rã bảo toàn thông tin (lossless join):** theo Elmasri (Tính chất NJB), phân rã `R` thành `{R1, R2}` là không mất mát nếu `(R1 ∩ R2) → (R1 − R2)` hoặc `(R1 ∩ R2) → (R2 − R1)` thuộc `F⁺`. Ở đây `R1 ∩ R2 = {subscription_id}`, và `subscription_id` là khóa của `MEMBER_SUBSCRIPTION` nên `subscription_id → (R2 − R1)`. Vậy phân rã là **lossless**. ∎
@@ -1081,7 +1087,7 @@ Nếu áp dụng chuẩn hóa tuyệt đối, phân rã `PT_BOOKING` theo F2 và
 
 1. **17/18 bảng đạt BCNF.** Mọi phụ thuộc hàm không tầm thường đều có vế trái là khóa dự tuyển. Các phụ thuộc "có vẻ hợp lý" đã được xét và loại trừ bằng lập luận nghiệp vụ, hoặc bằng phản ví dụ từ dữ liệu mẫu.
 2. **`pt_booking` đạt 2NF, không đạt 3NF/BCNF về mặt hình thức.** Hai phụ thuộc bắc cầu còn lại là phi chuẩn hóa **có chủ đích và có kiểm soát**: `subscription_id → member_user_id` phục vụ ràng buộc `EXCLUDE` (BR-16) và được khóa ngoại ghép `fk_booking_subscription_member` bảo đảm tuyệt đối; `start_time → booking_date` được `chk_pt_booking_date` (Cách 3, đã áp dụng) bảo đảm. Cả hai đều không thể sinh dữ liệu mâu thuẫn.
-3. **Các bổ sung của lược đồ hiện hành không phá vỡ BCNF của 17 bảng còn lại:** cột `created_by_user_id` (FK vết kiểm toán, BR-23), cột `billing_period_start`, miền `Late_Cancelled`/`E_Wallet`, và hai chỉ mục duy nhất một phần (`uq_member_one_active_subscription`, `uq_billing_subscription_period`). Chỉ mục duy nhất một phần chỉ ràng buộc một tập con bản ghi nên **không** là khóa dự tuyển và không thêm FD nào (Bổ đề 3), đặc biệt `billing_log` vẫn đạt BCNF.
+3. **Các bổ sung của lược đồ hiện hành không phá vỡ BCNF của 17 bảng còn lại:** cột `created_by_user_id`, `updated_by_user_id`, `updated_at` (FK/thuộc tính vết kiểm toán, BR-23), cột `billing_period_start`, miền `Late_Cancelled`/`E_Wallet`, và hai chỉ mục duy nhất một phần (`uq_member_one_active_subscription`, `uq_billing_subscription_period`). Chỉ mục duy nhất một phần chỉ ràng buộc một tập con bản ghi nên **không** là khóa dự tuyển và không thêm FD nào (Bổ đề 3), đặc biệt `billing_log` vẫn đạt BCNF.
 4. Các thuộc tính **ảnh chụp lịch sử** (`actual_price`, `end_time`, `remaining_sessions` trong `member_subscription`) và **dữ liệu dẫn xuất được trigger đồng bộ** (`current_enrolled`) không tạo ra phụ thuộc bắc cầu. Chúng được giữ có chủ đích để bảo toàn lịch sử giao dịch và để thực thi ràng buộc ở mức CSDL.
 
 ## 3. Từ điển dữ liệu (Data Dictionary – ISO/IEC 11179)
@@ -1218,7 +1224,9 @@ Quản lý gói dịch vụ phòng tập, hợp đồng đăng ký hội viên v
 | sub_status | VARCHAR(20) | None | No | 'Pending' | Trạng thái hợp đồng. `chk_subscription_status`: `IN ('Pending', 'Active', 'Expired', 'Suspended', 'Cancelled')`. Trigger `trg_require_payment_before_active` chỉ cho 'Active' khi đã có hóa đơn Completed; `trg_activate_on_payment_insert/_update` tự kích hoạt khi thanh toán (BR-07) |
 | is_recurring | BOOLEAN | None | No | FALSE | Cấu hình tự động gia hạn định kỳ; thủ tục `sp_process_subscription_renewals(p_as_of, p_grace_days)` phát hành hóa đơn gia hạn / chuyển Expired / Suspended (BR-24) |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm tạo hợp đồng |
-| created_by_user_id | INT | FK | Yes | NULL | Người thực hiện thao tác tạo. `fk_subscription_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; trigger `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi để NULL (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người thực hiện thao tác tạo hợp đồng, bắt buộc (BR-23). `fk_subscription_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa hợp đồng lần gần nhất (BR-23). `fk_subscription_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 
@@ -1240,7 +1248,9 @@ Quản lý gói dịch vụ phòng tập, hợp đồng đăng ký hội viên v
 | payment_method | VARCHAR(50) | None | No | None | Phương thức thanh toán. `chk_billing_method`: `IN ('Cash', 'Credit_Card', 'Banking', 'E_Wallet')` |
 | payment_status | VARCHAR(20) | None | No | 'Completed' | Trạng thái hóa đơn. `chk_billing_status`: `IN ('Pending', 'Completed', 'Failed', 'Refunded')`. Bản ghi bất biến: trigger `trg_billing_immutable_update/_delete/_truncate` chặn sửa/xóa/TRUNCATE (BR-10) |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm ghi nhận hóa đơn |
-| created_by_user_id | INT | FK | Yes | NULL | Người lập hóa đơn. `fk_billing_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người lập hóa đơn, bắt buộc (BR-23). `fk_billing_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa hóa đơn lần gần nhất (chỉ Completed→Refunded hoặc Pending→Completed/Failed, BR-10) (BR-23). `fk_billing_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 
@@ -1278,7 +1288,9 @@ Quản lý phòng tập, lịch lớp học nhóm, đăng ký lớp học và đ
 | end_time | TIMESTAMP | None | No | None | Thời điểm kết thúc. `chk_class_time`: `end_time > start_time` (BR-17) |
 | max_capacity | INT | None | No | None | Số hội viên tối đa được đăng ký. `chk_class_capacity`: `max_capacity > 0` |
 | current_enrolled | INT | None | No | 0 | Số hội viên đã đăng ký (dữ liệu dẫn xuất, đồng bộ bởi `trg_sync_class_enrollment_count`). `chk_class_enrolled`: `>= 0`; `chk_class_enrollment_limit`: `current_enrolled <= max_capacity` (BR-14) |
-| created_by_user_id | INT | FK | Yes | NULL | Người tạo lịch. `fk_class_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người tạo lịch, bắt buộc (BR-23). `fk_class_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa lịch lớp lần gần nhất (BR-23). `fk_class_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 
@@ -1316,7 +1328,9 @@ Quản lý phòng tập, lịch lớp học nhóm, đăng ký lớp học và đ
 | end_time | TIMESTAMP | None | No | None | Thời điểm kết thúc. `chk_pt_booking_time`: `end_time > start_time` (BR-17) |
 | status | VARCHAR(20) | None | No | 'Scheduled' | Trạng thái ca tập. `chk_pt_booking_status`: `IN ('Scheduled', 'Completed', 'Cancelled', 'Late_Cancelled', 'No_Show')`. `Late_Cancelled` = hủy muộn < 24h, vẫn trừ 1 buổi (BR-25); do trigger `trg_late_cancel_pt_booking` tự chuyển từ Cancelled |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm tạo ca tập |
-| created_by_user_id | INT | FK | Yes | NULL | Người đặt lịch (lễ tân/hội viên). `fk_booking_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người đặt lịch (lễ tân/hội viên), bắt buộc (BR-23). `fk_booking_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa ca PT lần gần nhất (đổi trạng thái, hủy) (BR-23). `fk_booking_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 
@@ -1380,7 +1394,9 @@ Quản lý thiết bị máy tập, theo dõi khấu hao, lịch sử giữ ch�
 | cost | DECIMAL(10,2) | None | No | 0.00 | Chi phí sửa chữa. `chk_maintenance_cost`: `cost >= 0` (BR-20) |
 | status | VARCHAR(20) | None | No | 'In_Progress' | Trạng thái xử lý. `chk_maintenance_status`: `IN ('In_Progress', 'Completed', 'Cancelled')` |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm tạo bản ghi |
-| created_by_user_id | INT | FK | Yes | NULL | Người ghi nhận. `fk_maintenance_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người ghi nhận, bắt buộc (BR-23). `fk_maintenance_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa ca bảo trì lần gần nhất (BR-23). `fk_maintenance_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Chỉ mục:** `idx_maintenance_log_equipment (equipment_id)`.
 
@@ -1400,15 +1416,16 @@ Số liệu dưới đây đếm trực tiếp từ catalog PostgreSQL sau khi n
 | --- | --- | --- | --- |
 | Bảng | 18 | Từ `user_account` đến `maintenance_log` (xem chương 3) | `01_schema_ddl.sql` |
 | Khóa chính (`PRIMARY KEY`) | 18 | `pk_*`; ba bảng hồ sơ dùng khóa chính chia sẻ `user_id` | `01_schema_ddl.sql` |
-| Khóa ngoại (`FOREIGN KEY`) | 29 | `ON DELETE RESTRICT` cho dữ liệu giao dịch; `CASCADE` chỉ cho hồ sơ 1:1, bảng nối và lượt giữ chỗ phụ thuộc; khóa ngoại ghép `fk_booking_subscription_member` | `01_schema_ddl.sql` |
+| Khóa ngoại (`FOREIGN KEY`) | 34 | `ON DELETE RESTRICT` cho dữ liệu giao dịch; `CASCADE` chỉ cho hồ sơ 1:1, bảng nối và lượt giữ chỗ phụ thuộc; khóa ngoại ghép `fk_booking_subscription_member` | `01_schema_ddl.sql` |
 | Ràng buộc duy nhất (`UNIQUE`) | 8 + 2 chỉ mục duy nhất từng phần | `uq_user_account_email`, `uq_billing_invoice_no`; từng phần: `uq_member_one_active_subscription` (BR-05), `uq_billing_subscription_period` (BR-08) | `01_schema_ddl.sql` |
 | Ràng buộc kiểm tra (`CHECK`) | 30 | `chk_billing_amount`, `chk_pt_booking_time`, `chk_class_enrollment_limit`… | `01_schema_ddl.sql` |
 | Ràng buộc loại trừ (`EXCLUDE USING gist`) | 5 | `ex_class_trainer_no_overlap`, `ex_class_room_no_overlap`, `ex_pt_trainer_no_overlap`, `ex_pt_member_no_overlap`, `ex_reservation_equipment_no_overlap` (cần `btree_gist`) | `01_schema_ddl.sql` |
 | Chỉ mục tường minh (`CREATE INDEX`) | 15 | `idx_member_subscription_member`, `idx_billing_log_subscription_date`, `idx_pt_booking_trainer`… (catalog có 48 chỉ mục, gồm cả chỉ mục do PK/UNIQUE/EXCLUDE sinh ra) | `01_schema_ddl.sql` |
-| Trigger | 29 (23 hàm trigger) | 3 trigger trong DDL (BR-03, BR-14) và 26 trigger trong `04_triggers_views.sql`; bảng liệt kê ở mục 4.1.3 | `01`, `04` |
+| Trigger | 34 (24 hàm trigger) | 3 trigger trong DDL (BR-03, BR-14) và 31 trigger trong `04_triggers_views.sql`; bảng liệt kê ở mục 4.1.3. Ngoài ra có 2 event trigger bảo vệ `billing_log` (BR-10) trong `08_rbac_security.sql` | `01`, `04` |
 | View | 2 | `vw_active_member_subscriptions`, `vw_trainer_schedule_overview` | `04_triggers_views.sql` |
 | Thủ tục (`PROCEDURE`) | 1 | `sp_process_subscription_renewals(p_as_of, p_grace_days)` (BR-24) | `04_triggers_views.sql` |
-| Role / tài khoản đăng nhập | 5 + 5 | `gym_role_*` (NOLOGIN) và `gym_u_*` (LOGIN, INHERIT) | `08_rbac_security.sql` |
+| Role / tài khoản đăng nhập | 5 + 5 (+ 1 role chủ sở hữu) | `gym_role_*` (NOLOGIN), `gym_u_*` (LOGIN, INHERIT) và `gym_owner` (NOLOGIN, chủ sở hữu mọi đối tượng) | `08_rbac_security.sql` |
+| Event trigger | 2 | `evt_protect_billing_log` (`ddl_command_end`), `evt_protect_billing_log_drop` (`sql_drop`), BR-10 | `08_rbac_security.sql` |
 
 #### 4.1.2. Ví dụ DDL: bảng, khóa, ràng buộc và chỉ mục
 
@@ -1426,7 +1443,9 @@ CREATE TABLE member_subscription (
     sub_status         VARCHAR(20)    NOT NULL DEFAULT 'Pending',
     is_recurring       BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at         TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_member_subscription PRIMARY KEY (subscription_id),
     CONSTRAINT uq_subscription_member UNIQUE (subscription_id, member_user_id),
     CONSTRAINT fk_subscription_member FOREIGN KEY (member_user_id)
@@ -1434,6 +1453,8 @@ CREATE TABLE member_subscription (
     CONSTRAINT fk_subscription_plan FOREIGN KEY (plan_id)
         REFERENCES membership_plan (plan_id) ON DELETE RESTRICT,
     CONSTRAINT fk_subscription_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_subscription_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_subscription_price CHECK (actual_price >= 0),
     CONSTRAINT chk_subscription_remaining CHECK (remaining_sessions >= 0),
@@ -1460,7 +1481,9 @@ CREATE TABLE pt_booking (
     end_time        TIMESTAMP   NOT NULL,
     status          VARCHAR(20) NOT NULL DEFAULT 'Scheduled',
     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_pt_booking PRIMARY KEY (booking_id),
     CONSTRAINT fk_booking_member FOREIGN KEY (member_user_id)
         REFERENCES member_profile (user_id) ON DELETE RESTRICT,
@@ -1471,6 +1494,8 @@ CREATE TABLE pt_booking (
     CONSTRAINT fk_booking_subscription_member FOREIGN KEY (subscription_id, member_user_id)
         REFERENCES member_subscription (subscription_id, member_user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_booking_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_booking_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT ex_pt_trainer_no_overlap EXCLUDE USING gist (
         trainer_user_id WITH =,
@@ -1512,7 +1537,7 @@ CREATE INDEX idx_maintenance_log_equipment ON maintenance_log (equipment_id);
 
 Trigger được dùng cho các quy tắc xuyên bảng hoặc phụ thuộc thời gian mà `CHECK` và `EXCLUDE` không diễn đạt được. Cột "BR" được truy ra từ bảng cơ chế thực thi ở mục 1.2.
 
-*Bảng 4-2. 29 trigger của hệ thống*
+*Bảng 4-2. 34 trigger của hệ thống*
 
 | Bảng | Trigger | Thời điểm / sự kiện | Hàm trigger | BR |
 | --- | --- | --- | --- | --- |
@@ -1523,30 +1548,35 @@ Trigger được dùng cho các quy tắc xuyên bảng hoặc phụ thuộc th�
 | `billing_log` | `trg_billing_immutable_update` | BEFORE UPDATE | `trg_fn_billing_immutable_update` | BR-10 |
 | `billing_log` | `trg_fill_billing_period_start` | BEFORE INSERT | `trg_fn_fill_billing_period_start` | BR-08 |
 | `billing_log` | `trg_fill_created_by` | BEFORE INSERT | `trg_fn_fill_created_by` | BR-23 |
+| `billing_log` | `trg_set_updated_by` | BEFORE UPDATE | `trg_fn_set_updated_by` | BR-23 |
 | `class_enrollment` | `trg_check_class_enrollment_conflicts` | BEFORE INSERT OR UPDATE | `trg_fn_check_class_enrollment_conflicts` | BR-16 |
-| `class_enrollment` | `trg_sync_class_enrollment_count` | AFTER INSERT OR DELETE OR UPDATE | `fn_sync_class_enrollment_count` | BR-14 |
+| `class_enrollment` | `trg_sync_class_enrollment_count` | AFTER INSERT OR UPDATE OR DELETE | `fn_sync_class_enrollment_count` | BR-14 |
 | `class_schedule` | `trg_check_class_schedule_conflicts` | BEFORE INSERT OR UPDATE | `trg_fn_check_class_schedule_conflicts` | BR-12, BR-16 |
 | `class_schedule` | `trg_fill_created_by` | BEFORE INSERT | `trg_fn_fill_created_by` | BR-23 |
 | `class_schedule` | `trg_prevent_class_in_maintenance_room` | BEFORE INSERT OR UPDATE | `trg_fn_prevent_room_under_maintenance` | BR-19 |
+| `class_schedule` | `trg_set_updated_by` | BEFORE UPDATE | `trg_fn_set_updated_by` | BR-23 |
+| `equipment` | `trg_prevent_equipment_maintenance_with_future_reservations` | BEFORE UPDATE | `trg_fn_prevent_equipment_maintenance_with_future_reservations` | BR-19 |
 | `equipment_reservation` | `trg_check_reservation_window` | BEFORE INSERT OR UPDATE | `trg_fn_check_reservation_window` | BR-19, BR-21 |
 | `equipment_reservation` | `trg_prevent_equipment_reservation_under_maintenance` | BEFORE INSERT OR UPDATE | `trg_fn_prevent_equipment_under_maintenance` | BR-19 |
-| `equipment` | `trg_prevent_equipment_maintenance_with_future_reservations` | BEFORE UPDATE | `trg_fn_prevent_equipment_maintenance_with_future_reservations` | BR-19 |
 | `facilities_room` | `trg_prevent_room_maintenance_with_future_classes` | BEFORE UPDATE | `trg_fn_prevent_room_maintenance_with_future_classes` | BR-19 |
 | `maintenance_log` | `trg_fill_created_by` | BEFORE INSERT | `trg_fn_fill_created_by` | BR-23 |
 | `maintenance_log` | `trg_finish_equipment_maintenance` | AFTER UPDATE | `trg_fn_finish_equipment_maintenance` | BR-19 |
+| `maintenance_log` | `trg_set_updated_by` | BEFORE UPDATE | `trg_fn_set_updated_by` | BR-23 |
 | `maintenance_log` | `trg_start_equipment_maintenance_insert` | AFTER INSERT | `trg_fn_start_equipment_maintenance` | BR-19 |
 | `maintenance_log` | `trg_start_equipment_maintenance_update` | AFTER UPDATE | `trg_fn_start_equipment_maintenance` | – |
 | `member_profile` | `trg_check_member_dob` | BEFORE INSERT OR UPDATE | `trg_fn_check_user_age` | BR-03 |
 | `member_subscription` | `trg_fill_created_by` | BEFORE INSERT | `trg_fn_fill_created_by` | BR-23 |
 | `member_subscription` | `trg_require_payment_before_active` | BEFORE INSERT OR UPDATE | `trg_fn_require_payment_before_active` | BR-07 |
+| `member_subscription` | `trg_set_updated_by` | BEFORE UPDATE | `trg_fn_set_updated_by` | BR-23 |
 | `pt_booking` | `trg_check_pt_booking_conflicts` | BEFORE INSERT OR UPDATE | `trg_fn_check_pt_booking_conflicts` | BR-12, BR-16 |
 | `pt_booking` | `trg_check_pt_booking_creation` | BEFORE INSERT | `trg_fn_check_pt_booking_creation` | BR-18 |
 | `pt_booking` | `trg_fill_created_by` | BEFORE INSERT | `trg_fn_fill_created_by` | BR-23 |
 | `pt_booking` | `trg_late_cancel_pt_booking` | BEFORE UPDATE | `trg_fn_late_cancel_pt_booking` | BR-25 |
+| `pt_booking` | `trg_set_updated_by` | BEFORE UPDATE | `trg_fn_set_updated_by` | BR-23 |
 | `pt_booking` | `trg_update_remaining_pt_sessions` | AFTER UPDATE | `trg_fn_update_remaining_pt_sessions` | BR-18, BR-25 |
 | `user_account` | `trg_check_user_dob_for_member` | BEFORE UPDATE | `trg_fn_check_member_dob_update` | BR-03 |
 
-Ví dụ 1 – **nhật ký thanh toán bất biến (BR-10)**: ba trigger chặn `UPDATE`, `DELETE`, `TRUNCATE` trên `billing_log` kể cả với chủ sở hữu bảng (hàm `trg_fn_billing_immutable_update` chỉ cho phép `Completed → Refunded` và `Pending → Completed/Failed`):
+Ví dụ 1 – **nhật ký thanh toán bất biến (BR-10)**: ba trigger chặn `UPDATE`, `DELETE`, `TRUNCATE` trên `billing_log` với mọi người dùng (lớp bảo vệ còn lại ở mục 5.2.6) (hàm `trg_fn_billing_immutable_update` chỉ cho phép `Completed → Refunded` và `Pending → Completed/Failed`):
 
 ```sql
 CREATE OR REPLACE FUNCTION trg_fn_billing_immutable_delete()
@@ -1706,12 +1736,12 @@ $$;
 | --- | --- | --- | --- |
 | 1 | `Phase 3/01_schema_ddl.sql` | Tự động | Extension `btree_gist`, 18 bảng, ràng buộc, chỉ mục, 3 trigger (BR-03, BR-14) |
 | 2 | `Phase 3/02_mock_data/01..08_*.sql` | Tự động | Dữ liệu mẫu cho 18 bảng (tham chiếu, người dùng, thiết bị, hợp đồng và hóa đơn, lớp, ca PT, giữ chỗ, bảo trì) |
-| 3 | `Phase 3/04_triggers_views.sql` | Tự động | 2 view, 26 trigger nghiệp vụ, thủ tục gia hạn và khối kiểm toán dữ liệu mẫu |
-| 4 | `Phase 3/08_rbac_security.sql` | Tự động | 5 role nhóm, 5 tài khoản demo, `GRANT`/`REVOKE`, `SECURITY DEFINER` (nạp lại 04 thì phải nạp lại 08) |
+| 3 | `Phase 3/04_triggers_views.sql` | Tự động | 2 view, 31 trigger nghiệp vụ (gồm `trg_fill_created_by`/`trg_set_updated_by`, BR-23), thủ tục gia hạn và khối kiểm toán dữ liệu mẫu |
+| 4 | `Phase 3/08_rbac_security.sql` | Tự động | 5 role nhóm, 5 tài khoản demo, role chủ sở hữu `gym_owner`, `GRANT`/`REVOKE`, `SECURITY DEFINER`, 2 event trigger bảo vệ `billing_log` (nạp lại 04 thì phải nạp lại 08; nạp lại 04 khi event trigger đã có cần lối thoát `SET LOCAL app.allow_billing_maintenance = 'on'` của superuser) |
 | – | `Phase 3/03_complex_queries.sql` | Thủ công | 10 truy vấn nâng cao (mục 4.2) |
-| – | `Phase 3/05_constraint_test_cases.sql` | Thủ công | 105 test ràng buộc/trigger (mục 5.1) |
+| – | `Phase 3/05_constraint_test_cases.sql` | Thủ công | 109 test ràng buộc/trigger (mục 5.1) |
 | – | `Phase 3/06_performance_test_cases.sql` | Thủ công | 8 test hiệu năng với 100.000+ bản ghi (mục 4.2.12) |
-| – | `Phase 3/09_rbac_test_cases.sql` | Thủ công | 48 test phân quyền (mục 5.2) |
+| – | `Phase 3/09_rbac_test_cases.sql` | Thủ công | 61 test phân quyền (mục 5.2) |
 | – | `Phase 3/07_test_results.md` | – | Kết quả kiểm thử dạng văn bản |
 
 Chạy toàn bộ hệ thống (CSDL + dữ liệu mẫu + view/trigger + RBAC + ứng dụng web) chỉ bằng một lệnh tại thư mục gốc của repository; PostgreSQL tự nạp các tập tin 01 → 02 → 04 → 08 từ `/docker-entrypoint-initdb.d/`:
@@ -2177,41 +2207,41 @@ ORDER BY
 
 **Yêu cầu được kiểm chứng (NFR-PERF-01):** các truy vấn tra cứu/tìm kiếm chính phải trả kết quả dưới 200 ms với khối lượng 100.000 – 200.000 bản ghi mỗi bảng nghiệp vụ.
 
-**Phương pháp** (`Phase 3/06_performance_test_cases.sql`, bọc trong `BEGIN … ROLLBACK`): (1) sinh tạm 100.000 tài khoản, 200.000 hóa đơn và 120.000 ca PT bằng `generate_series()` không vi phạm ràng buộc nào, rồi `ANALYZE`; (2) mỗi truy vấn chạy `EXPLAIN (ANALYZE)` hai lần: **(a) có chỉ mục** (kế hoạch bình thường) và **(b) không chỉ mục** (tắt `enable_indexscan`, `enable_bitmapscan`, `enable_indexonlyscan` để buộc `Seq Scan`); (3) có chạy làm nóng một lần trước khi đo. Thời gian tuyệt đối phụ thuộc máy; điều cần quan sát là loại phép quét và tỉ lệ chênh lệch giữa (a) và (b).
+**Phương pháp** (`Phase 3/06_performance_test_cases.sql`, bọc trong `BEGIN … ROLLBACK`): (1) sinh tạm 100.000 tài khoản, 200.000 hóa đơn và 120.000 ca PT bằng `generate_series()` không vi phạm ràng buộc nào (các trigger nghiệp vụ của người dùng trên `billing_log` và `pt_booking` được tắt tạm trong lúc nạp hàng loạt bằng lối thoát bảo trì `SET LOCAL app.allow_billing_maintenance = 'on'` của superuser vì event trigger BR-10 chặn `ALTER TABLE`, rồi bật lại trước khi đo), rồi `ANALYZE`; (2) mỗi truy vấn chạy `EXPLAIN (ANALYZE)` hai lần: **(a) có chỉ mục** (kế hoạch bình thường) và **(b) không chỉ mục** (tắt `enable_indexscan`, `enable_bitmapscan`, `enable_indexonlyscan` để buộc `Seq Scan`); (3) có chạy làm nóng một lần trước khi đo. Thời gian tuyệt đối phụ thuộc máy; điều cần quan sát là loại phép quét và tỉ lệ chênh lệch giữa (a) và (b).
 
 *Bảng 4-5. Kết quả 8 test hiệu năng: có chỉ mục (a) so với không chỉ mục (b)*
 
 | Mã | Truy vấn | Kế hoạch (a) có chỉ mục | (a) ms | Kế hoạch (b) không chỉ mục | (b) ms | Nhanh hơn | < 200 ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| PT-01 | Tra cứu tài khoản theo email khi đăng nhập | Index Scan (uq_user_account_email) | 0.055 | Seq Scan (user_account) | 13.801 | 250.9x | PASS |
-| PT-02 | Tra cứu tài khoản theo số điện thoại | Index Scan (uq_user_account_phone) | 0.041 | Seq Scan (user_account) | 13.544 | 330.3x | PASS |
-| PT-03 | Tổng doanh thu theo phương thức thanh toán trong 1 tuần | Bitmap Index Scan (idx_billing_log_payment_date) | 0.854 | Seq Scan (billing_log) | 33.432 | 39.1x | PASS |
-| PT-04 | Lịch sử 20 hóa đơn gần nhất của một hợp đồng | Index Scan (idx_billing_log_subscription_date) | 0.059 | Seq Scan (billing_log) | 26.125 | 442.8x | PASS |
-| PT-05 | Tra cứu một hóa đơn theo invoice_no | Index Scan (uq_billing_invoice_no) | 0.041 | Seq Scan (billing_log) | 26.123 | 637.1x | PASS |
-| PT-06 | Lịch ca PT trong một ngày của một HLV | Index Scan (idx_pt_booking_dates) | 0.059 | Seq Scan (pt_booking) | 13.313 | 225.6x | PASS |
-| PT-07 | Kiểm tra trùng lịch HLV bằng toán tử chồng lấn khoảng thời gian (&&) | Index Scan (ex_pt_trainer_no_overlap) | 0.056 | Seq Scan (pt_booking) | 14.589 | 260.5x | PASS |
-| PT-08 | Truy vấn phức hợp Q1: doanh thu từng gói tập trong một quý (JOIN 3 bảng) | Bitmap Index Scan (idx_billing_log_payment_date) | 13.097 | Seq Scan (billing_log) | 41.645 | 3.2x | PASS |
+| PT-01 | Tra cứu tài khoản theo email khi đăng nhập | Index Scan (uq_user_account_email) | 0.037 | Seq Scan (user_account) | 14.119 | 381.6x | PASS |
+| PT-02 | Tra cứu tài khoản theo số điện thoại | Index Scan (uq_user_account_phone) | 0.041 | Seq Scan (user_account) | 14.055 | 342.8x | PASS |
+| PT-03 | Tổng doanh thu theo phương thức thanh toán trong 1 tuần | Bitmap Index Scan (idx_billing_log_payment_date) | 0.842 | Seq Scan (billing_log) | 33.374 | 39.6x | PASS |
+| PT-04 | Lịch sử 20 hóa đơn gần nhất của một hợp đồng | Index Scan (idx_billing_log_subscription_date) | 0.058 | Seq Scan (billing_log) | 18.321 | 315.9x | PASS |
+| PT-05 | Tra cứu một hóa đơn theo invoice_no | Index Scan (uq_billing_invoice_no) | 0.041 | Seq Scan (billing_log) | 26.713 | 651.5x | PASS |
+| PT-06 | Lịch ca PT trong một ngày của một HLV | Index Scan (idx_pt_booking_dates) | 0.058 | Seq Scan (pt_booking) | 12.300 | 212.1x | PASS |
+| PT-07 | Kiểm tra trùng lịch HLV bằng toán tử chồng lấn khoảng thời gian (&&) | Index Scan (ex_pt_trainer_no_overlap) | 0.055 | Seq Scan (pt_booking) | 13.619 | 247.6x | PASS |
+| PT-08 | Truy vấn phức hợp Q1: doanh thu từng gói tập trong một quý (JOIN 3 bảng) | Bitmap Index Scan (idx_billing_log_payment_date) | 13.652 | Seq Scan (billing_log) | 41.440 | 3.0x | PASS |
 
-**Kết luận:** 8/8 test đạt NFR-PERF-01 (mọi truy vấn dưới 200 ms, thực tế dưới 14 ms). Các truy vấn tra cứu điểm (PT-01, 02, 04, 05, 06, 07) chạy trong khoảng 0,04 – 0,06 ms nhờ chỉ mục, nhanh hơn 225 – 637 lần so với quét toàn bảng. PT-04 dùng chỉ mục ghép `idx_billing_log_subscription_date (subscription_id, payment_date DESC)` phục vụ cả điều kiện lọc lẫn `ORDER BY`. PT-07 cho thấy chỉ mục GiST của ràng buộc `EXCLUDE` vừa bảo đảm toàn vẹn (BR-12) vừa tăng tốc phép tìm khoảng thời gian chồng lấn (`&&`). PT-08 (truy vấn phức hợp Q1) chỉ cải thiện 3,2 lần vì phần lớn thời gian nằm ở `JOIN` và `GROUP BY` chứ không ở bước lọc.
+**Kết luận:** 8/8 test đạt NFR-PERF-01 (mọi truy vấn dưới 200 ms, thực tế dưới 14 ms). Các truy vấn tra cứu điểm (PT-01, 02, 04, 05, 06, 07) chạy trong khoảng 0,04 – 0,06 ms nhờ chỉ mục, nhanh hơn 212 – 652 lần so với quét toàn bảng. PT-04 dùng chỉ mục ghép `idx_billing_log_subscription_date (subscription_id, payment_date DESC)` phục vụ cả điều kiện lọc lẫn `ORDER BY`. PT-07 cho thấy chỉ mục GiST của ràng buộc `EXCLUDE` vừa bảo đảm toàn vẹn (BR-12) vừa tăng tốc phép tìm khoảng thời gian chồng lấn (`&&`). PT-08 (truy vấn phức hợp Q1) chỉ cải thiện 3,0 lần vì phần lớn thời gian nằm ở `JOIN` và `GROUP BY` chứ không ở bước lọc.
 
 Kế hoạch thực thi minh họa – PT-01 (tra cứu theo email, chỉ mục B-tree do `UNIQUE` tự sinh):
 
 ```text
- Index Scan using uq_user_account_email on user_account (actual time=0.044..0.046 rows=1 loops=1)
+ Index Scan using uq_user_account_email on user_account (actual time=0.047..0.049 rows=1 loops=1)
    Index Cond: ((email)::text = 'perf_user_77777@perf.test'::text)
- Planning Time: 0.135 ms
- Execution Time: 0.074 ms
+ Planning Time: 0.075 ms
+ Execution Time: 0.073 ms
 ```
 
 PT-07 (kiểm tra trùng lịch huấn luyện viên bằng chỉ mục GiST của `ex_pt_trainer_no_overlap`):
 
 ```text
- Result (actual time=0.069..0.069 rows=1 loops=1)
+ Result (actual time=0.070..0.071 rows=1 loops=1)
    InitPlan 1 (returns $0)
-     ->  Index Scan using ex_pt_trainer_no_overlap on pt_booking (actual time=0.067..0.068 rows=1 loops=1)
+     ->  Index Scan using ex_pt_trainer_no_overlap on pt_booking (actual time=0.069..0.069 rows=1 loops=1)
            Index Cond: ((trainer_user_id = 8) AND (tsrange(start_time, end_time, '[)'::text) && '["2032-03-15 10:30:00","2032-03-15 11:30:00")'::tsrange))
- Planning Time: 0.169 ms
- Execution Time: 0.096 ms
+ Planning Time: 0.139 ms
+ Execution Time: 0.091 ms
 ```
 
 ## 5. Kiểm thử & bảo mật (Verification & Security)
@@ -2237,11 +2267,11 @@ Bộ kiểm thử `Phase 3/05_constraint_test_cases.sql` chạy trong một giao
 | `P0001` | raise_exception | Trigger PL/pgSQL chủ động `RAISE EXCEPTION` (thông báo nêu mã `BR-xx`) |
 | `00000` | successful_completion | Test dương (TP-xx): thao tác hợp lệ được chấp nhận |
 
-#### 5.1.2. Kết quả: 105/105 test PASS
+#### 5.1.2. Kết quả: 109/109 test PASS
 
-Kết quả chạy trên PostgreSQL 16: **105 test, 105 đạt, 0 không đạt** (71 test âm TC-xx và 34 test dương TP-xx). Cột "Quy tắc" cho biết quy tắc nghiệp vụ được kiểm chứng; thông báo lỗi chi tiết của CSDL có trong `Phase 3/07_test_results.md`.
+Kết quả chạy trên PostgreSQL 16: **109 test, 109 đạt, 0 không đạt** (74 test âm TC-xx và 35 test dương TP-xx). Cột "Quy tắc" cho biết quy tắc nghiệp vụ được kiểm chứng; thông báo lỗi chi tiết của CSDL có trong `Phase 3/07_test_results.md`.
 
-*Bảng 5-2. 105 test case ràng buộc và trigger*
+*Bảng 5-2. 109 test case ràng buộc và trigger*
 
 | Mã | Quy tắc | Kịch bản | Mong đợi | Thực tế | Kết quả |
 | --- | --- | --- | --- | --- | --- |
@@ -2332,7 +2362,11 @@ Kết quả chạy trên PostgreSQL 16: **105 test, 105 đạt, 0 không đạt*
 | TC-65 | BR-23 | Người thực hiện không tồn tại trong user_account (fk_booking_created_by) | 23503 | 23503 | PASS |
 | TP-20 | BR-23 | created_by_user_id tự điền từ SET LOCAL app.current_user_id cho 5 bảng giao dịch | 00000 | 00000 | PASS |
 | TP-21 | BR-23 | Giá trị created_by_user_id nêu rõ trong INSERT không bị trigger ghi đè | 00000 | 00000 | PASS |
-| TP-22 | BR-23 | Chưa đặt app.current_user_id (tác vụ hệ thống/cron) thì created_by_user_id giữ NULL | 00000 | 00000 | PASS |
+| TC-72 | BR-23 | INSERT khi chưa đặt app.current_user_id (và không nêu created_by_user_id) bị chặn | P0001 | P0001 | PASS |
+| TC-73 | BR-23 | UPDATE khi chưa đặt app.current_user_id bị chặn (không có người sửa để ghi updated_by_user_id) | P0001 | P0001 | PASS |
+| TC-74 | BR-23 | Không được đổi created_by_user_id sau khi đã ghi (vết người tạo bất biến) | P0001 | P0001 | PASS |
+| TP-22 | BR-23 | UPDATE tự ghi updated_by_user_id (từ biến phiên, không tin giá trị truyền vào) và updated_at | 00000 | 00000 | PASS |
+| TP-35 | BR-23 | UPDATE nội bộ do trigger (BR-07 tự kích hoạt hợp đồng khi thanh toán) ghi người thao tác hiện tại vào updated_by_user_id | 00000 | 00000 | PASS |
 | TC-66 | BR-24 | Gọi thủ tục với số ngày ân hạn âm (sp_process_subscription_renewals) | P0001 | P0001 | PASS |
 | TP-23 | BR-24 | Quá hạn: HĐ không tự gia hạn -> Expired; HĐ tự gia hạn -> hóa đơn Pending kỳ kế tiếp, vẫn Active trong ân hạn | 00000 | 00000 | PASS |
 | TP-24 | BR-24 | Gọi thủ tục nhiều lần trong ngày không phát sinh thêm hóa đơn gia hạn (idempotent) | 00000 | 00000 | PASS |
@@ -2355,13 +2389,13 @@ Kết quả chạy trên PostgreSQL 16: **105 test, 105 đạt, 0 không đạt*
 
 Các quy tắc có test trực tiếp: BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-07, BR-08, BR-09, BR-10, BR-11, BR-12, BR-13, BR-14, BR-15, BR-16, BR-17, BR-18, BR-19, BR-20, BR-21, BR-22, BR-23, BR-24, BR-25, BR-26. Quy tắc không có test riêng trong bộ 05 (được kiểm chứng gián tiếp hoặc ở bộ khác): không có.
 
-Hai quy tắc chỉ được thực thi một phần ở mức CSDL (BR-10, BR-23) được nêu rõ giới hạn trong mục 1.2.1 và được tổng hợp lại ở mục 5.2.6. Bộ test chỉ chứng minh những gì CSDL thực sự chặn; các giới hạn đó **không** được trình bày như đã thực thi đầy đủ.
+Mọi quy tắc BR-01…BR-26 đều được thực thi ở mức CSDL; các lưu ý còn lại (superuser là gốc tin cậy của BR-10, BR-24 cần bộ lập lịch ngoài, BR-22 đồng bộ thủ công bảng `role_permission` với `GRANT`) được nêu trong mục 1.2.1 và tổng hợp ở mục 5.2.6. Mọi script test đặt `app.current_user_id` ở đầu tập tin vì BR-23 từ chối ghi dữ liệu khi chưa có người thực hiện.
 
 ### 5.2. Phân quyền theo vai trò – RBAC (GRANT/REVOKE)
 
 #### 5.2.1. Thiết kế phân quyền
 
-Hệ thống có hai tầng phân quyền. **Tầng dữ liệu ứng dụng** gồm các bảng `role`, `user_role`, `permission`, `role_permission` (mô hình RBAC đa vai trò M:N, BR-22). **Tầng CSDL** (`Phase 3/08_rbac_security.sql`) hiện thực 5 role nhóm PostgreSQL `NOLOGIN` tương ứng 5 vai trò, cùng 5 tài khoản đăng nhập mẫu thừa hưởng (`INHERIT`) quyền của role nhóm. Nguyên tắc đặc quyền tối thiểu: thu hồi mọi quyền của `PUBLIC`, rồi chỉ `GRANT` đúng những gì ma trận quyền yêu cầu; cột nhạy cảm `user_account.password_hash` được bảo vệ bằng `GRANT` mức cột; script idempotent (dọn role cũ rồi tạo lại) nên chạy lại nhiều lần vẫn an toàn.
+Hệ thống có hai tầng phân quyền. **Tầng dữ liệu ứng dụng** gồm các bảng `role`, `user_role`, `permission`, `role_permission` (mô hình RBAC đa vai trò M:N, BR-22). **Tầng CSDL** (`Phase 3/08_rbac_security.sql`) hiện thực 5 role nhóm PostgreSQL `NOLOGIN` tương ứng 5 vai trò, cùng 5 tài khoản đăng nhập mẫu thừa hưởng (`INHERIT`) quyền của role nhóm; mọi đối tượng ứng dụng thuộc role `NOLOGIN` `gym_owner` (không ai đăng nhập bằng role này). Nguyên tắc đặc quyền tối thiểu: thu hồi mọi quyền của `PUBLIC`, rồi chỉ `GRANT` đúng những gì ma trận quyền yêu cầu; cột nhạy cảm `user_account.password_hash` được bảo vệ bằng `GRANT` mức cột; script idempotent (dọn role cũ rồi tạo lại) nên chạy lại nhiều lần vẫn an toàn.
 
 *Bảng 5-3. Năm role nhóm và phạm vi quyền*
 
@@ -2489,25 +2523,41 @@ GRANT EXECUTE ON PROCEDURE sp_process_subscription_renewals(DATE, INT)
     TO gym_role_admin, gym_role_receptionist;
 ```
 
+**Chủ sở hữu duy nhất `gym_owner` và event trigger bảo vệ `billing_log` (BR-10, lớp 3 và 4)** – không tài khoản đăng nhập nào sở hữu bảng nên không `ALTER`/`DROP` được; event trigger chặn cả superuser (superuser chỉ bảo trì được bằng thao tác tường minh `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`):
+
+```sql
+-- gym_owner: role NOLOGIN, KHÔNG phải superuser, không là thành viên của role nào và không role
+-- đăng nhập nào là thành viên của nó. Chỉ superuser (gốc tin cậy) mới SET ROLE/ALTER OWNER được.
+-- Không bao giờ DROP gym_owner khi chạy lại vì làm vậy sẽ kéo theo xóa đối tượng ứng dụng.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gym_owner') THEN
+        CREATE ROLE gym_owner NOLOGIN;
+    END IF;
+END;
+$$;
+
+GRANT USAGE, CREATE ON SCHEMA public TO gym_owner;
+
+CREATE EVENT TRIGGER evt_protect_billing_log ON ddl_command_end
+    WHEN TAG IN ('ALTER TABLE', 'ALTER TRIGGER', 'ALTER FUNCTION', 'CREATE FUNCTION')
+    EXECUTE FUNCTION fn_evt_protect_billing_log();
+
+CREATE EVENT TRIGGER evt_protect_billing_log_drop ON sql_drop
+    WHEN TAG IN ('DROP TABLE', 'DROP TRIGGER', 'DROP FUNCTION')
+    EXECUTE FUNCTION fn_evt_protect_billing_log();
+```
+
 #### 5.2.4. Hàm trigger SECURITY DEFINER: lý do
 
 Hàm trigger mặc định chạy với quyền của **người kích hoạt**. Nếu huấn luyện viên đổi `pt_booking.status = 'Completed'`, trigger trừ buổi phải `UPDATE member_subscription` – bảng mà huấn luyện viên không (và không được) có quyền ghi; tương tự, lễ tân thêm `class_enrollment` sẽ kích hoạt cập nhật `class_schedule.current_enrolled`. Nếu không có `SECURITY DEFINER`, các thao tác hợp lệ này sẽ bị từ chối với `42501`; còn nếu cấp thêm quyền ghi cho các role thì phá vỡ nguyên tắc đặc quyền tối thiểu. Giải pháp: mọi hàm trigger chạy bằng quyền chủ sở hữu hàm, kèm `SET search_path = public, pg_temp` cố định để chống tấn công chiếm quyền qua `search_path` (NFR-SEC-05). Danh sách hàm được liệt kê động từ `pg_proc` nên hàm trigger thêm sau này cũng tự được áp dụng khi chạy lại script.
 
 ```sql
 DO $$
-DECLARE
-    v_function REGPROCEDURE;
 BEGIN
-    FOR v_function IN
-        SELECT p.oid::REGPROCEDURE
-        FROM pg_proc AS p
-        JOIN pg_namespace AS n ON n.oid = p.pronamespace
-        WHERE n.nspname = 'public'
-          AND p.prorettype = 'trigger'::REGTYPE
-        ORDER BY p.proname
-    LOOP
-        EXECUTE format('ALTER FUNCTION %s SECURITY DEFINER SET search_path = public, pg_temp', v_function);
-    END LOOP;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gym_owner') THEN
+        CREATE ROLE gym_owner NOLOGIN;
+    END IF;
 END;
 $$;
 ```
@@ -2516,9 +2566,9 @@ Thủ tục `sp_process_subscription_renewals` chạy với quyền **người g
 
 #### 5.2.5. Kết quả kiểm thử phân quyền
 
-Bộ `Phase 3/09_rbac_test_cases.sql` chạy bằng superuser nhưng chuyển sang từng role bằng `SET LOCAL ROLE` (tự hoàn tác cùng savepoint) để thử cả thao tác được phép lẫn thao tác bị cấm, chạy trong giao dịch rồi `ROLLBACK`. Thao tác bị cấm phải nhận `42501` (insufficient_privilege); thao tác hợp lệ phải thành công (`00000`) kể cả khi phải đi qua chuỗi trigger `SECURITY DEFINER`. **Kết quả: 48/48 test PASS.** Mã test: `RA/TA/EA/MA/AA` = thao tác được phép; `RD/TD/ED/MD/AD` = thao tác bị từ chối; `LA/LD` = tài khoản đăng nhập thừa hưởng quyền role nhóm.
+Bộ `Phase 3/09_rbac_test_cases.sql` chạy bằng superuser nhưng chuyển sang từng role bằng `SET LOCAL ROLE` (tự hoàn tác cùng savepoint) để thử cả thao tác được phép lẫn thao tác bị cấm, chạy trong giao dịch rồi `ROLLBACK`. Thao tác bị cấm phải nhận `42501` (insufficient_privilege); thao tác hợp lệ phải thành công (`00000`) kể cả khi phải đi qua chuỗi trigger `SECURITY DEFINER`. **Kết quả: 61/61 test PASS.** Mã test: `RA/TA/EA/MA/AA` = thao tác được phép; `RD/TD/ED/MD/AD` = thao tác bị từ chối; `LA/LD` = tài khoản đăng nhập thừa hưởng quyền role nhóm; `EV-01..EV-13` = kiểm thử event trigger và quyền sở hữu bảo vệ BR-10 (superuser bị chặn `P0001`, role ứng dụng bị chặn `42501`, lối thoát bảo trì có chủ đích, tất cả đối tượng thuộc `gym_owner`).
 
-*Bảng 5-5. 48 test case phân quyền*
+*Bảng 5-5. 61 test case phân quyền*
 
 | Mã | Vai trò | Kịch bản | Mong đợi | Thực tế | Kết quả |
 | --- | --- | --- | --- | --- | --- |
@@ -2570,19 +2620,32 @@ Bộ `Phase 3/09_rbac_test_cases.sql` chạy bằng superuser nhưng chuyển sa
 | AD-04 | gym_role_admin | Đọc cột password_hash của user_account | 42501 | 42501 | PASS |
 | LD-01 | gym_u_trainer | Tài khoản gym_u_trainer thừa hưởng: không đọc được billing_log | 42501 | 42501 | PASS |
 | LA-01 | gym_u_tech | Tài khoản gym_u_tech thừa hưởng: đọc được equipment | 00000 | 00000 | PASS |
+| EV-01 | superuser | Superuser ALTER TABLE billing_log DISABLE TRIGGER USER bị event trigger chặn | P0001 | P0001 | PASS |
+| EV-02 | superuser | Superuser DROP TRIGGER trg_billing_immutable_delete ON billing_log bị chặn | P0001 | P0001 | PASS |
+| EV-03 | superuser | Superuser DROP TABLE billing_log CASCADE bị chặn | P0001 | P0001 | PASS |
+| EV-04 | superuser | Superuser thay ruột hàm trigger bất biến (CREATE OR REPLACE FUNCTION) bị chặn | P0001 | P0001 | PASS |
+| EV-05 | superuser | Superuser đổi tên trigger bất biến (ALTER TRIGGER ... RENAME) bị chặn | P0001 | P0001 | PASS |
+| EV-06 | superuser | Lối thoát bảo trì: superuser đặt app.allow_billing_maintenance = on rồi DISABLE/DROP TRIGGER được phép | 00000 | 00000 | PASS |
+| EV-07 | gym_u_admin | gym_u_admin ALTER TABLE billing_log (kể cả khi đặt lối thoát) -> 42501 không phải chủ sở hữu | 42501 | 42501 | PASS |
+| EV-08 | gym_role_admin | gym_role_admin DROP TRIGGER trg_billing_immutable_update ON billing_log -> 42501 | 42501 | 42501 | PASS |
+| EV-09 | gym_role_admin | gym_role_admin DROP TABLE billing_log -> 42501 | 42501 | 42501 | PASS |
+| EV-10 | gym_role_admin | gym_role_admin ALTER TABLE billing_log DISABLE TRIGGER ALL -> 42501 | 42501 | 42501 | PASS |
+| EV-11 | superuser | Mọi bảng, view, sequence, hàm, thủ tục trong schema public đều thuộc gym_owner | 00000 | 00000 | PASS |
+| EV-12 | superuser | gym_owner NOLOGIN, không phải superuser; không gym_u_*/gym_role_* nào là thành viên của gym_owner | 00000 | 00000 | PASS |
+| EV-13 | superuser | Event trigger evt_protect_billing_log (ddl_command_end) và _drop (sql_drop) đang bật | 00000 | 00000 | PASS |
 
 #### 5.2.6. Tổng hợp mức độ thực thi và giới hạn còn lại
 
-Bảng dưới đây ghi trung thực những gì được CSDL thực thi đầy đủ và những gì chỉ thực thi một phần hoặc chưa có trong bản demo.
+Bảng dưới đây ghi trung thực những gì được CSDL thực thi và những lưu ý, giới hạn còn lại hoặc chưa có trong bản demo.
 
 *Bảng 5-6. Mức độ thực thi và giới hạn của các cơ chế bảo vệ*
 
 | Hạng mục | Mức độ | Giới hạn / ghi chú |
 | --- | --- | --- |
-| Ràng buộc khai báo (`PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `EXCLUDE`, chỉ mục duy nhất từng phần) và trigger xuyên bảng: BR-01…BR-09, BR-11…BR-21 (kể cả BR-19 hai chiều), BR-25, BR-26 | Đầy đủ ở CSDL | Được kiểm chứng bằng 105 test (mục 5.1). Chủ sở hữu bảng/superuser về nguyên tắc có thể vô hiệu hóa trigger bằng DDL (`ALTER TABLE … DISABLE TRIGGER`). |
-| BR-10 – hóa đơn bất biến | Một phần | Trigger chặn mọi người dùng, và mọi role ứng dụng (kể cả Admin) chỉ có `SELECT, INSERT` trên `billing_log`, không role nào có `TRUNCATE`. Hạn chế: chủ sở hữu bảng vẫn có thể chủ động `DISABLE TRIGGER` (thao tác DDL để lại dấu vết). |
+| Ràng buộc khai báo (`PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `EXCLUDE`, chỉ mục duy nhất từng phần) và trigger xuyên bảng: BR-01…BR-09, BR-11…BR-21 (kể cả BR-19 hai chiều), BR-25, BR-26 | Đầy đủ ở CSDL | Được kiểm chứng bằng 109 test (mục 5.1). Mọi đối tượng thuộc role `NOLOGIN` `gym_owner` nên không tài khoản đăng nhập nào là chủ sở hữu để vô hiệu hóa trigger. |
+| BR-10 – hóa đơn bất biến | Đầy đủ ở CSDL (bốn lớp) | BR-10 được bảo vệ bốn lớp. (1) Trigger `trg_billing_immutable_update/_delete/_truncate` chặn sửa/xóa/`TRUNCATE` hóa đơn với mọi role. (2) Phân quyền chỉ cấp `SELECT, INSERT` trên `billing_log`, kể cả cho Admin (lỗi `42501`). (3) Mọi đối tượng ứng dụng thuộc role `NOLOGIN` `gym_owner`; không tài khoản đăng nhập nào là chủ sở hữu hay thành viên của role này nên không thể `ALTER`/`DROP` `billing_log` hay vô hiệu hóa trigger. (4) Event trigger `evt_protect_billing_log` chặn `ALTER TABLE`, `DROP TABLE`, `DROP`/`ALTER TRIGGER` trên `billing_log` và việc sửa/xóa các hàm trigger bất biến (lỗi `P0001` 'BR-10'), kể cả với superuser. Giới hạn cố hữu: superuser là gốc tin cậy của mọi DBMS nên vẫn có thể bảo trì có chủ đích bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`; thao tác này phải tường minh. Chạy lại `04_triggers_views.sql` trên CSDL đã có event trigger cũng cần lối thoát này. |
 | BR-22 – RBAC | Đầy đủ ở mức CSDL (có hạn chế) | Bảng `role_permission` là dữ liệu ma trận cho ứng dụng còn `GRANT` được viết tay tương ứng; hai nơi không tự đồng bộ. Không dùng Row-Level Security: hội viên chỉ đọc được danh mục công khai ở mức CSDL, việc xem dữ liệu cá nhân theo từng hội viên chưa được thực thi ở CSDL. |
-| BR-23 – vết người thực hiện | Một phần | Phụ thuộc ứng dụng đặt biến phiên `app.current_user_id`; cột `created_by_user_id` cho phép `NULL` (dữ liệu cũ, tác vụ hệ thống); chỉ ghi lúc `INSERT`, không có nhật ký cho `UPDATE`. |
+| BR-23 – vết người thực hiện | Đầy đủ ở CSDL | `created_by_user_id INT NOT NULL`, `updated_by_user_id`, `updated_at` và khóa ngoại `fk_*_created_by`/`fk_*_updated_by` trên 5 bảng; `trg_fill_created_by` (`BEFORE INSERT`) từ chối nếu chưa đặt `app.current_user_id`; `trg_set_updated_by` (`BEFORE UPDATE`) luôn ghi người sửa và thời điểm sửa, cấm đổi `created_by_user_id`. Mọi chương trình ghi dữ liệu phải đặt `app.current_user_id` (ứng dụng qua `db_tx`, bộ lập lịch qua `PGOPTIONS` và `SCHEDULER_ACTOR_USER_ID`, script test ở đầu tập tin); gọi thủ tục hay chạy DML thủ công khi chưa đặt biến sẽ lỗi theo thiết kế. |
 | BR-24 – tự gia hạn và ân hạn | Đầy đủ khi có bộ lập lịch ngoài | Logic nằm trong thủ tục idempotent; PostgreSQL không có bộ lập lịch tích hợp nên Docker demo có service `scheduler` (`fitzone_renewal_scheduler`) gọi thủ tục khi khởi động và mỗi `RENEWAL_INTERVAL_SECONDS` giây, production dùng `pg_cron`/cron. Nếu không có bộ lập lịch nào chạy thì quy tắc theo thời gian không tự kích hoạt. |
 | NFR-SEC-03 – mã hóa dữ liệu lưu trữ | Chưa có trong demo | Là yêu cầu triển khai (đĩa/volume mã hóa, TLS); bản Docker demo chưa cài đặt. |
 | NFR-AVL-01 – sao lưu | Chưa có trong demo | Khuyến nghị `pg_dump` hằng ngày kèm sao lưu WAL; demo chỉ dùng Docker volume, chưa có lịch sao lưu tự động; không có kiểm thử tự động. |
@@ -2648,7 +2711,7 @@ Không có quan hệ 1:1 độc lập. Quan hệ 1:1 duy nhất là "is-a" giữ
 | RESERVED_FOR | equipment_reservation | equipment_id → equipment | toàn phần | `fk_reservation_equipment` (CASCADE) |
 | FOR_BOOKING (XOR) | equipment_reservation | booking_id → pt_booking (NULL được) | riêng phần | `fk_reservation_booking`, `chk_reservation_source` |
 | FOR_CLASS (XOR) | equipment_reservation | class_id → class_schedule (NULL được) | riêng phần | `fk_reservation_class`, `chk_reservation_source` |
-| CREATED_BY ×5 (BR-23) | member_subscription, billing_log, class_schedule, pt_booking, maintenance_log | created_by_user_id → user_account(user_id), NULL được | riêng phần | `fk_subscription_created_by`, `fk_billing_created_by`, `fk_class_created_by`, `fk_booking_created_by`, `fk_maintenance_created_by` (đều RESTRICT) |
+| CREATED_BY / UPDATED_BY ×5 (BR-23) | member_subscription, billing_log, class_schedule, pt_booking, maintenance_log | created_by_user_id → user_account(user_id) NOT NULL (toàn phần); updated_by_user_id → user_account(user_id) NULL được (riêng phần, kèm updated_at) | toàn phần (created) / riêng phần (updated) | `fk_subscription_created_by`, `fk_billing_created_by`, `fk_class_created_by`, `fk_booking_created_by`, `fk_maintenance_created_by` và 5 khóa `fk_*_updated_by` (đều RESTRICT) |
 
 Cung loại trừ XOR của EQUIPMENT_RESERVATION được ánh xạ bằng hai FK nullable cộng `chk_reservation_source` (đúng một trong hai khác NULL); tránh trùng lịch thiết bị bằng `ex_reservation_equipment_no_overlap`.
 
@@ -2718,7 +2781,7 @@ Mô hình không có category (không có lớp con có nhiều siêu lớp khá
 | 17 | equipment_reservation | EQUIPMENT_RESERVATION + RESERVED_FOR + XOR | 1, 4, 9 |
 | 18 | maintenance_log | MAINTENANCE_LOG + REPAIRED_IN + PERFORMS | 1, 4 |
 
-Khóa ngoại `created_by_user_id` (BR-23): 5/5 đã tính — `member_subscription` (`fk_subscription_created_by`), `billing_log` (`fk_billing_created_by`), `class_schedule` (`fk_class_created_by`), `pt_booking` (`fk_booking_created_by`), `maintenance_log` (`fk_maintenance_created_by`).
+Khóa ngoại `created_by_user_id` và `updated_by_user_id` (BR-23): 10/10 đã tính — `member_subscription` (`fk_subscription_created_by`), `billing_log` (`fk_billing_created_by`), `class_schedule` (`fk_class_created_by`), `pt_booking` (`fk_booking_created_by`), `maintenance_log` (`fk_maintenance_created_by`); cùng 5 bảng có thêm `fk_subscription_updated_by`, `fk_billing_updated_by`, `fk_class_updated_by`, `fk_booking_updated_by`, `fk_maintenance_updated_by`.
 
 ## Phụ lục B. Hướng dẫn chạy dự án (How to run)
 
@@ -2743,15 +2806,19 @@ Thư mục `Phase 3/` được mount chỉ-đọc vào `/sql/` trong container C
 # 03 - 10 truy vấn nâng cao
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/03_complex_queries.sql
 
-# 05 - kiểm thử ràng buộc & trigger (105 test case)
+# 05 - kiểm thử ràng buộc & trigger (109 test case)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/05_constraint_test_cases.sql
 
 # 06 - kiểm thử hiệu năng (mất khoảng 1 phút)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/06_performance_test_cases.sql
 
-# 09 - kiểm thử phân quyền RBAC (48 test case)
+# 09 - kiểm thử phân quyền RBAC (61 test case)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/09_rbac_test_cases.sql
 ```
+
+**Lưu ý BR-23:** mọi thao tác ghi vào 5 bảng giao dịch cần có người thực hiện; khi chạy SQL thủ công hãy `SET app.current_user_id = '<user_id>';` trước (các script test tự đặt; bộ lập lịch dùng biến môi trường `SCHEDULER_ACTOR_USER_ID`, mặc định 3).
+
+**Nạp lại CSDL đã có (BR-10):** Bản nạp lại (01 `DROP` `billing_log`, 04 `DROP`/`CREATE` trigger và hàm bất biến) bị event trigger BR-10 chặn, kể cả với superuser. Cách đơn giản nhất là tạo CSDL mới (`docker compose down -v` rồi `docker compose up --build`). Nếu muốn nạp lại tại chỗ, superuser đặt lối thoát trong cùng phiên `psql` (`SET app.allow_billing_maintenance = 'on';` trước khi `\i` các tập tin) hoặc tắt event trigger bằng hai lệnh riêng `ALTER EVENT TRIGGER evt_protect_billing_log DISABLE;` và `ALTER EVENT TRIGGER evt_protect_billing_log_drop DISABLE;`, sau đó nạp lại 08 để tạo lại chúng.
 
 ### B.3. Tài khoản demo và gọi thủ tục gia hạn
 

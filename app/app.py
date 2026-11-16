@@ -432,8 +432,7 @@ elif menu == "👥 Quản Lý Hội Viên & Gói Tập":
                     else:
                         try:
                             # Thực hiện transaction thêm tài khoản, role và profile
-                            conn = get_db_connection()
-                            with conn.cursor() as cur:
+                            with db_tx() as cur:
                                 cur.execute("""
                                     INSERT INTO user_account (full_name, email, phone, dob, emergency_contact, password_hash, status)
                                     VALUES (%s, %s, %s, %s, %s, %s, 'Active')
@@ -446,11 +445,9 @@ elif menu == "👥 Quản Lý Hội Viên & Gói Tập":
                                 
                                 # Thêm hồ sơ sức khỏe
                                 cur.execute("INSERT INTO member_profile (user_id, health_notes) VALUES (%s, %s);", (new_user_id, new_notes))
-                                conn.commit()
-                                st.success(f"✅ Đăng ký thành công hội viên mới! Mã định danh (User ID): {new_user_id}")
-                                st.rerun()
+                            st.success(f"✅ Đăng ký thành công hội viên mới! Mã định danh (User ID): {new_user_id}")
+                            st.rerun()
                         except Exception as ex:
-                            conn.rollback()
                             st.error(f"Lỗi cơ sở dữ liệu: {explain_db_error(ex)}")
                             
     with crud_tab3:
@@ -1207,9 +1204,9 @@ elif menu == "⚡ Kiểm Thử Triggers & Ràng Buộc":
                 sel_pt_test = pt_opts[sel_pt_test_str]
                 
                 if st.button("👉 Kích Hoạt Chuyển Trạng Thái Thành 'Completed'", key="btn_trigger_pt"):
-                    conn = get_db_connection()
                     try:
-                        with conn.cursor() as cur:
+                        # db_tx đặt app.current_user_id (BR-23) và luôn ROLLBACK (commit=False)
+                        with db_tx(commit=False) as cur:
                             cur.execute("UPDATE pt_booking SET status = 'Completed' WHERE booking_id = %s;", (int(sel_pt_test['booking_id']),))
                             # Đọc lại số buổi trong cùng giao dịch (trước khi rollback)
                             cur.execute("SELECT remaining_sessions FROM member_subscription WHERE subscription_id = %s;", (int(sel_pt_test['subscription_id']),))
@@ -1223,11 +1220,6 @@ elif menu == "⚡ Kiểm Thử Triggers & Ràng Buộc":
                         """)
                     except Exception as ex:
                         st.error(f"Lỗi từ Trigger: {ex}")
-                    finally:
-                        try:
-                            conn.rollback()
-                        except Exception:
-                            pass
             else:
                 st.info("Hiện không có ca tập nào đang ở trạng thái 'Scheduled'.")
         except Exception as e:

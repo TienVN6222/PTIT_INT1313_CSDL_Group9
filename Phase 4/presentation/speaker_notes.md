@@ -36,7 +36,7 @@ UNIQUE chỉ so sánh bằng, CHECK chỉ nhìn một dòng, nên không diễn 
 ## Slide 7 - Trigger nghiệp vụ
 **Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
 
-Năm cơ chế tiêu biểu. Hóa đơn bất biến: ngay cả chủ sở hữu bảng cũng không xóa được vì trigger áp dụng cho mọi tài khoản. Tự kích hoạt: tạo hợp đồng Pending, ghi hóa đơn Completed, trigger tự chuyển Active. Hủy muộn: ứng dụng chỉ gửi trạng thái Cancelled, trigger BEFORE tự đổi thành Late_Cancelled nếu còn dưới 24 giờ, rồi trigger AFTER trừ một buổi. Gia hạn tự động là thủ tục vì PostgreSQL không có bộ lập lịch, cron gọi mỗi ngày; thủ tục idempotent. Cuối cùng created_by lưu vết người thao tác.
+Năm cơ chế tiêu biểu. Hóa đơn bất biến có bốn lớp: trigger áp dụng cho mọi tài khoản; chỉ cấp SELECT, INSERT; mọi đối tượng thuộc role NOLOGIN gym_owner nên không tài khoản đăng nhập nào là chủ sở hữu; event trigger chặn ALTER, DROP bảng, trigger và hàm bất biến kể cả với superuser (superuser là gốc tin cậy nên vẫn bảo trì được nếu cố ý tắt event trigger). Vết thao tác BR-23: tạo thì bắt buộc có người thực hiện, sửa thì tự ghi người sửa và thời điểm sửa. Tự kích hoạt: tạo hợp đồng Pending, ghi hóa đơn Completed, trigger tự chuyển Active. Hủy muộn: ứng dụng chỉ gửi trạng thái Cancelled, trigger BEFORE tự đổi thành Late_Cancelled nếu còn dưới 24 giờ, rồi trigger AFTER trừ một buổi. Gia hạn tự động là thủ tục vì PostgreSQL không có bộ lập lịch, cron gọi mỗi ngày; thủ tục idempotent. Cuối cùng created_by lưu vết người thao tác.
 
 ## Slide 8 - Truy vấn phức hợp 1
 **Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
@@ -51,7 +51,7 @@ Truy vấn 9 xếp hạng hội viên theo tổng tiền thực chi bằng DENSE
 ## Slide 10 - Kết quả kiểm thử
 **Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
 
-Ba bộ kiểm thử. Mục 5.1: chín mươi tám test ràng buộc đạt cả, gồm 68 test âm tính và 30 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE và chạy trong savepoint nên độc lập. Mục 5.2: bốn mươi bảy test phân quyền đạt cả. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây khi quét tuần tự. Dữ liệu mẫu 715 dòng, ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 15/11/2026; nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.
+Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây khi quét tuần tự. Dữ liệu mẫu 715 dòng, ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.
 
 ## Slide 11 - RBAC
 **Người trình bày:** Lê Hòa Thuận  |  **Thời lượng:** ~0.5 phút

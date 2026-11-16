@@ -28,7 +28,9 @@ Quản lý phòng tập, lịch lớp học nhóm, đăng ký lớp học và đ
 | end_time | TIMESTAMP | None | No | None | Thời điểm kết thúc. `chk_class_time`: `end_time > start_time` (BR-17) |
 | max_capacity | INT | None | No | None | Số hội viên tối đa được đăng ký. `chk_class_capacity`: `max_capacity > 0` |
 | current_enrolled | INT | None | No | 0 | Số hội viên đã đăng ký (dữ liệu dẫn xuất, đồng bộ bởi `trg_sync_class_enrollment_count`). `chk_class_enrolled`: `>= 0`; `chk_class_enrollment_limit`: `current_enrolled <= max_capacity` (BR-14) |
-| created_by_user_id | INT | FK | Yes | NULL | Người tạo lịch. `fk_class_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người tạo lịch, bắt buộc (BR-23). `fk_class_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa lịch lớp lần gần nhất (BR-23). `fk_class_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 
@@ -66,7 +68,9 @@ Quản lý phòng tập, lịch lớp học nhóm, đăng ký lớp học và đ
 | end_time | TIMESTAMP | None | No | None | Thời điểm kết thúc. `chk_pt_booking_time`: `end_time > start_time` (BR-17) |
 | status | VARCHAR(20) | None | No | 'Scheduled' | Trạng thái ca tập. `chk_pt_booking_status`: `IN ('Scheduled', 'Completed', 'Cancelled', 'Late_Cancelled', 'No_Show')`. `Late_Cancelled` = hủy muộn < 24h, vẫn trừ 1 buổi (BR-25); do trigger `trg_late_cancel_pt_booking` tự chuyển từ Cancelled |
 | created_at | TIMESTAMP | None | No | CURRENT_TIMESTAMP | Thời điểm tạo ca tập |
-| created_by_user_id | INT | FK | Yes | NULL | Người đặt lịch (lễ tân/hội viên). `fk_booking_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; điền bởi `trg_fill_created_by` (BR-23) |
+| created_by_user_id | INT | FK | No | None | Người đặt lịch (lễ tân/hội viên), bắt buộc (BR-23). `fk_booking_created_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; `trg_fill_created_by` điền từ biến phiên `app.current_user_id` khi câu INSERT không nêu, nếu cả hai đều thiếu thì RAISE lỗi BR-23; `trg_set_updated_by` không cho đổi sau khi ghi |
+| updated_by_user_id | INT | FK | Yes | NULL | Người sửa ca PT lần gần nhất (đổi trạng thái, hủy) (BR-23). `fk_booking_updated_by` → USER_ACCOUNT(user_id) **ON DELETE RESTRICT**; luôn do `trg_set_updated_by` ghi đè từ `app.current_user_id`; NULL = chưa từng sửa |
+| updated_at | TIMESTAMP | None | Yes | NULL | Thời điểm sửa gần nhất (BR-23), do `trg_set_updated_by` ghi `CURRENT_TIMESTAMP`; NULL = chưa từng sửa |
 
 **Ràng buộc/chỉ mục cấp bảng:**
 

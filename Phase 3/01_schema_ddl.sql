@@ -196,7 +196,9 @@ CREATE TABLE member_subscription (
     sub_status         VARCHAR(20)    NOT NULL DEFAULT 'Pending',
     is_recurring       BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at         TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_member_subscription PRIMARY KEY (subscription_id),
     CONSTRAINT uq_subscription_member UNIQUE (subscription_id, member_user_id),
     CONSTRAINT fk_subscription_member FOREIGN KEY (member_user_id)
@@ -204,6 +206,8 @@ CREATE TABLE member_subscription (
     CONSTRAINT fk_subscription_plan FOREIGN KEY (plan_id)
         REFERENCES membership_plan (plan_id) ON DELETE RESTRICT,
     CONSTRAINT fk_subscription_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_subscription_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_subscription_price CHECK (actual_price >= 0),
     CONSTRAINT chk_subscription_remaining CHECK (remaining_sessions >= 0),
@@ -227,12 +231,16 @@ CREATE TABLE billing_log (
     payment_method  VARCHAR(50)    NOT NULL,
     payment_status  VARCHAR(20)    NOT NULL DEFAULT 'Completed',
     created_at      TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_billing_log PRIMARY KEY (billing_id),
     CONSTRAINT uq_billing_invoice_no UNIQUE (invoice_no),
     CONSTRAINT fk_billing_subscription FOREIGN KEY (subscription_id)
         REFERENCES member_subscription (subscription_id) ON DELETE RESTRICT,
     CONSTRAINT fk_billing_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_billing_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_billing_amount CHECK (amount > 0),
     CONSTRAINT chk_billing_method CHECK (payment_method IN ('Cash', 'Credit_Card', 'Banking', 'E_Wallet')),
@@ -292,13 +300,17 @@ CREATE TABLE class_schedule (
     end_time         TIMESTAMP    NOT NULL,
     max_capacity     INT          NOT NULL,
     current_enrolled INT          NOT NULL DEFAULT 0,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_class_schedule PRIMARY KEY (class_id),
     CONSTRAINT fk_class_trainer FOREIGN KEY (trainer_user_id)
         REFERENCES trainer_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_class_room FOREIGN KEY (room_id)
         REFERENCES facilities_room (room_id) ON DELETE RESTRICT,
     CONSTRAINT fk_class_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_class_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT ex_class_trainer_no_overlap EXCLUDE USING gist (
         trainer_user_id WITH =,
@@ -388,7 +400,9 @@ CREATE TABLE pt_booking (
     end_time        TIMESTAMP   NOT NULL,
     status          VARCHAR(20) NOT NULL DEFAULT 'Scheduled',
     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_pt_booking PRIMARY KEY (booking_id),
     CONSTRAINT fk_booking_member FOREIGN KEY (member_user_id)
         REFERENCES member_profile (user_id) ON DELETE RESTRICT,
@@ -399,6 +413,8 @@ CREATE TABLE pt_booking (
     CONSTRAINT fk_booking_subscription_member FOREIGN KEY (subscription_id, member_user_id)
         REFERENCES member_subscription (subscription_id, member_user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_booking_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_booking_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT ex_pt_trainer_no_overlap EXCLUDE USING gist (
         trainer_user_id WITH =,
@@ -452,13 +468,17 @@ CREATE TABLE maintenance_log (
     cost              DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     status            VARCHAR(20)    NOT NULL DEFAULT 'In_Progress',
     created_at        TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id INT NOT NULL,
+    updated_by_user_id INT,
+    updated_at TIMESTAMP,
     CONSTRAINT pk_maintenance_log PRIMARY KEY (maintenance_id),
     CONSTRAINT fk_maintenance_equipment FOREIGN KEY (equipment_id)
         REFERENCES equipment (equipment_id) ON DELETE RESTRICT,
     CONSTRAINT fk_maintenance_staff FOREIGN KEY (staff_user_id)
         REFERENCES staff_profile (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_maintenance_created_by FOREIGN KEY (created_by_user_id)
+        REFERENCES user_account (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_maintenance_updated_by FOREIGN KEY (updated_by_user_id)
         REFERENCES user_account (user_id) ON DELETE RESTRICT,
     CONSTRAINT chk_maintenance_cost CHECK (cost >= 0),
     CONSTRAINT chk_maintenance_status CHECK (status IN ('In_Progress', 'Completed', 'Cancelled')),

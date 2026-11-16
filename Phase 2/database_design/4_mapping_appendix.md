@@ -52,7 +52,7 @@ Không có quan hệ 1:1 độc lập. Quan hệ 1:1 duy nhất là "is-a" giữ
 | RESERVED_FOR | equipment_reservation | equipment_id → equipment | toàn phần | `fk_reservation_equipment` (CASCADE) |
 | FOR_BOOKING (XOR) | equipment_reservation | booking_id → pt_booking (NULL được) | riêng phần | `fk_reservation_booking`, `chk_reservation_source` |
 | FOR_CLASS (XOR) | equipment_reservation | class_id → class_schedule (NULL được) | riêng phần | `fk_reservation_class`, `chk_reservation_source` |
-| CREATED_BY ×5 (BR-23) | member_subscription, billing_log, class_schedule, pt_booking, maintenance_log | created_by_user_id → user_account(user_id), NULL được | riêng phần | `fk_subscription_created_by`, `fk_billing_created_by`, `fk_class_created_by`, `fk_booking_created_by`, `fk_maintenance_created_by` (đều RESTRICT) |
+| CREATED_BY / UPDATED_BY ×5 (BR-23) | member_subscription, billing_log, class_schedule, pt_booking, maintenance_log | created_by_user_id → user_account(user_id) NOT NULL (toàn phần); updated_by_user_id → user_account(user_id) NULL được (riêng phần, kèm updated_at) | toàn phần (created) / riêng phần (updated) | `fk_subscription_created_by`, `fk_billing_created_by`, `fk_class_created_by`, `fk_booking_created_by`, `fk_maintenance_created_by` và 5 khóa `fk_*_updated_by` (đều RESTRICT) |
 
 Cung loại trừ XOR của EQUIPMENT_RESERVATION được ánh xạ bằng hai FK nullable cộng `chk_reservation_source` (đúng một trong hai khác NULL); tránh trùng lịch thiết bị bằng `ex_reservation_equipment_no_overlap`.
 
@@ -115,4 +115,4 @@ Mô hình không có category (không có lớp con có nhiều siêu lớp khá
 | 17 | equipment_reservation | EQUIPMENT_RESERVATION + RESERVED_FOR + XOR | 1, 4, 9 |
 | 18 | maintenance_log | MAINTENANCE_LOG + REPAIRED_IN + PERFORMS | 1, 4 |
 
-Khóa ngoại `created_by_user_id` (BR-23): 5/5 đã tính — `member_subscription` (`fk_subscription_created_by`), `billing_log` (`fk_billing_created_by`), `class_schedule` (`fk_class_created_by`), `pt_booking` (`fk_booking_created_by`), `maintenance_log` (`fk_maintenance_created_by`).
+Khóa ngoại `created_by_user_id` và `updated_by_user_id` (BR-23): 10/10 đã tính — `member_subscription` (`fk_subscription_created_by`), `billing_log` (`fk_billing_created_by`), `class_schedule` (`fk_class_created_by`), `pt_booking` (`fk_booking_created_by`), `maintenance_log` (`fk_maintenance_created_by`); cùng 5 bảng có thêm `fk_subscription_updated_by`, `fk_billing_updated_by`, `fk_class_updated_by`, `fk_booking_updated_by`, `fk_maintenance_updated_by`.
