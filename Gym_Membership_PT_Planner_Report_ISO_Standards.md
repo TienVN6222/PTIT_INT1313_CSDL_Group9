@@ -263,7 +263,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-02 | Admin | Tôi phải gán được vai trò cho từng người dùng để mỗi người chỉ làm đúng việc của mình. |
 | UR-03 | Lễ tân | Tôi phải đăng ký được gói tập cho hội viên và biết hợp đồng nào đang có hiệu lực. |
 | UR-04 | Lễ tân | Tôi phải ghi nhận được thanh toán, và hợp đồng chỉ có hiệu lực khi đã thanh toán. |
-| UR-05 | FR-12, NFR-SEC-04 | BR-10 |
+| UR-05 | Admin | Hóa đơn thanh toán đã ghi nhận phải không thể bị xóa hoặc chỉnh sửa sai quy định để bảo đảm tính minh bạch khi kiểm toán. |
 | UR-06 | Hội viên, Lễ tân | Hợp đồng dài hạn phải tự gia hạn đúng hạn, và hội viên không trả tiền phải bị tạm ngưng sau thời gian ân hạn. |
 | UR-07 | Lễ tân, HLV | Tôi phải lập được lịch lớp nhóm mà không bị trùng giờ HLV hay trùng phòng. |
 | UR-08 | Lễ tân, Hội viên | Hội viên phải đăng ký được lớp, nhưng không vượt quá sức chứa và không bị trùng với lịch khác của họ. |
