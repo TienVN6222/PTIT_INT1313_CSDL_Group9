@@ -34,7 +34,7 @@ docker compose up --build
 
 - Container `fitzone_postgres_db` tự động khởi chạy và nạp tuần tự các file script trong `/docker-entrypoint-initdb.d/` (mỗi file trong `Phase 3/` được mount riêng với tên đích sắp xếp đúng thứ tự):
   1. `01_schema_ddl.sql` (Khởi tạo 18 bảng, PK, FK, CHECK, Trigger tuổi BR-03, Indexes).
-  2. `02_01_…` đến `02_08_…` ← `Phase 3/02_mock_data/01_reference_data.sql` … `08_maintenance_logs.sql` (8 file dữ liệu mẫu, tổng 722 bản ghi trên 18 bảng, đa dạng trạng thái).
+  2. `02_01_…` đến `02_08_…` ← `Phase 3/02_mock_data/01_reference_data.sql` … `08_maintenance_logs.sql` (8 file dữ liệu mẫu, tổng 9.925 bản ghi trên 18 bảng, đa dạng trạng thái). Người dùng 31–3000 và thiết bị 201–500 được sinh tất định bằng `generate_series()` để đạt mức tối thiểu của giảng viên (≥ 3.000 người dùng, ≥ 500 thiết bị).
   3. `04_triggers_views.sql` (Khởi tạo 2 Views, các Triggers nghiệp vụ BR-07 → BR-25, thủ tục gia hạn `sp_process_subscription_renewals` và khối kiểm toán dữ liệu mẫu).
   4. `08_rbac_security.sql` (Tạo các role phân quyền và tài khoản đăng nhập demo `gym_u_*`).
 - Container `fitzone_renewal_scheduler` (cùng image `postgres:16-alpine`) chờ CSDL sẵn sàng rồi gọi `CALL sp_process_subscription_renewals();` (BR-24) bằng tài khoản lễ tân `gym_u_reception` ngay khi khởi động và lặp lại mỗi `RENEWAL_INTERVAL_SECONDS` giây (mặc định 86400 = 1 ngày; đặt biến này trong `.env` để đổi, ví dụ `20` khi trình diễn). Xem log: `docker logs fitzone_renewal_scheduler`.
@@ -206,3 +206,4 @@ Trong Docker demo, service `scheduler` (container `fitzone_renewal_scheduler`) t
 4. **Complex Queries Playground:** Chọn và thực thi từng câu truy vấn trong số 10 câu nâng cao, hiển thị mã SQL, bảng dữ liệu và biểu đồ Plotly tương tác.
 5. **Trigger Test Bench:** Môi trường thử nghiệm trực quan tương tác cho phép giảng viên/hội đồng kiểm tra trực tiếp phản ứng tự vệ của CSDL khi kích hoạt các Triggers.
 6. **Người thao tác (BR-23):** Ô chọn *Người thao tác* ở thanh bên (nhân viên/quản trị từ `user_account` ⨝ `user_role`); mỗi giao dịch ghi dữ liệu chạy `SET LOCAL app.current_user_id` để cột `created_by_user_id` được điền tự động. Mọi phép thử/demo không cần lưu đều `ROLLBACK`.
+

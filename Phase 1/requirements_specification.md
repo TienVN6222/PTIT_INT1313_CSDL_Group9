@@ -56,7 +56,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-02 | Admin | Tôi phải gán được vai trò cho từng người dùng để mỗi người chỉ làm đúng việc của mình. |
 | UR-03 | Lễ tân | Tôi phải đăng ký được gói tập cho hội viên và biết hợp đồng nào đang có hiệu lực. |
 | UR-04 | Lễ tân | Tôi phải ghi nhận được thanh toán, và hợp đồng chỉ có hiệu lực khi đã thanh toán. |
-| UR-05 | FR-12, NFR-SEC-04 | BR-10 | `billing_log` | `trg_billing_immutable_update/_delete/_truncate`; `GRANT SELECT, INSERT`; role `gym_owner` NOLOGIN; event trigger `evt_protect_billing_log`/`_drop` | 05: BR-10: TC-17, TC-44..TC-49, TP-12..TP-14; 09: RD-03, RD-04, AD-01, AD-02, AD-03, EV-01..EV-13 |
+| UR-05 | Admin, Lễ tân | Tôi phải được bảo đảm hóa đơn đã ghi nhận không bị sửa hoặc xóa tùy ý, để việc đối soát luôn đáng tin cậy. |
 | UR-06 | Hội viên, Lễ tân | Hợp đồng dài hạn phải tự gia hạn đúng hạn, và hội viên không trả tiền phải bị tạm ngưng sau thời gian ân hạn. |
 | UR-07 | Lễ tân, HLV | Tôi phải lập được lịch lớp nhóm mà không bị trùng giờ HLV hay trùng phòng. |
 | UR-08 | Lễ tân, Hội viên | Hội viên phải đăng ký được lớp, nhưng không vượt quá sức chứa và không bị trùng với lịch khác của họ. |
@@ -66,7 +66,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-12 | Kỹ thuật viên | Tôi phải quản lý được danh mục thiết bị, ngày mua, khấu hao và lịch sử bảo trì kèm chi phí. |
 | UR-13 | Lễ tân, HLV | Thiết bị hoặc phòng đang bảo trì không được xếp vào lịch mới, và một máy không bị hai ca giữ cùng lúc. |
 | UR-14 | Admin | Tôi phải xem được báo cáo doanh thu, tỷ lệ lấp đầy lớp, hiệu suất HLV, và các hợp đồng sắp hết hạn. |
-| UR-15 | FR-30 | BR-23 | `member_subscription`, `billing_log`, `class_schedule`, `pt_booking`, `maintenance_log` | cột `created_by_user_id NOT NULL`, `updated_by_user_id`, `updated_at`, `fk_*_created_by`/`fk_*_updated_by`, `trg_fill_created_by`, `trg_set_updated_by` | 05: BR-23: TC-65, TC-72..TC-74, TP-20..TP-22, TP-35 |
+| UR-15 | Admin | Tôi phải truy vết được ai đã tạo hoặc sửa mỗi giao dịch quan trọng (hợp đồng, hóa đơn, lịch lớp, ca PT, bảo trì). |
 | UR-16 | Mọi người dùng | Mật khẩu và thông tin nhạy cảm của tôi phải được bảo vệ. |
 | UR-17 | Mọi người dùng | Tra cứu thông tin phải phản hồi nhanh, không phải chờ đáng kể khi dữ liệu lớn. |
 | UR-18 | Admin | Dữ liệu phải được sao lưu để khôi phục được khi có sự cố. |

@@ -13,7 +13,7 @@
 --                với khối lượng dữ liệu cỡ 100.000+ bản ghi mỗi bảng nghiệp vụ.
 --
 -- PHƯƠNG PHÁP:
---   1. Dữ liệu mẫu gốc chỉ có ~700 bản ghi => bộ tối ưu hóa luôn chọn Seq Scan,
+--   1. Dữ liệu mẫu chỉ có ~9.900 bản ghi (3.000 user, 500 thiết bị) => bộ tối ưu hóa luôn chọn Seq Scan,
 --      không phản ánh thực tế. Vì vậy script sinh tạm ~420.000 bản ghi
 --      (100k tài khoản, 200k hóa đơn, 120k ca PT) bằng generate_series().
 --   2. Mỗi test case chạy EXPLAIN (ANALYZE) 2 lần:

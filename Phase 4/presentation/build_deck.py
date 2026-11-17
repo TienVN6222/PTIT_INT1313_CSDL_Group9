@@ -35,7 +35,7 @@ STATS = {
     "perf_total": "8/8",          # 06_performance_test_cases.sql
     "perf_limit_ms": "200",
     "perf_rows": "100k user, 200k hóa đơn, 120k ca PT",
-    "mock_rows": "715",
+    "mock_rows": "9.925",
     "tables": "18",
     "business_rules": "26",
     "triggers_secdef": "24",
@@ -44,7 +44,6 @@ STATS = {
 PRESENTERS = {
     "A": "Lê Hoàng Tiến",
     "B": "Lê Hòa Thuận",
-    "C": "Trần Minh Tiến",
 }
 
 # ----------------------------------------------------------------------------
@@ -171,7 +170,7 @@ def note(title, who, minutes, text):
     prs.slides[len(prs.slides) - 1].notes_slide.notes_text_frame.text = text
 
 
-A, B, C = PRESENTERS["A"], PRESENTERS["B"], PRESENTERS["C"]
+A, B = PRESENTERS["A"], PRESENTERS["B"]
 
 # ----------------------------------------------------------------------------
 # SLIDE 1 - TIÊU ĐỀ
@@ -330,7 +329,7 @@ note("EXCLUDE gist", B, 1,
 # ----------------------------------------------------------------------------
 # SLIDE 7 - HÓA ĐƠN, KÍCH HOẠT, HỦY MUỘN
 # ----------------------------------------------------------------------------
-s = base_slide("Trigger: hóa đơn, kích hoạt, hủy muộn", C, 1)
+s = base_slide("Trigger: hóa đơn, kích hoạt, hủy muộn", B, 1)
 rows = [
     ["Cơ chế", "Trigger / thủ tục", "Hành vi"],
     ["BR-10 Hóa đơn bất biến", "trg_billing_immutable_update/delete/truncate",
@@ -347,7 +346,7 @@ table(s, Inches(0.5), Inches(1.4), Inches(12.3), rows, [2.6, 5.2, 4.5], size=14,
 add_text(s, Inches(0.5), Inches(6.55), Inches(12.3), Inches(0.4),
          ["Thứ tự: BEFORE sửa NEW trước khi ghi; AFTER nhìn thấy trạng thái đã sửa nên trừ buổi đúng"],
          size=14, color=GREY)
-note("Trigger nghiệp vụ", C, 1,
+note("Trigger nghiệp vụ", B, 1,
      "Năm cơ chế tiêu biểu. Hóa đơn bất biến có bốn lớp: trigger áp dụng cho mọi tài khoản; chỉ cấp SELECT, INSERT; mọi đối tượng thuộc role NOLOGIN gym_owner nên không tài khoản đăng nhập nào là chủ sở hữu; event trigger chặn ALTER, DROP bảng, trigger và hàm bất biến kể cả với superuser (superuser là gốc tin cậy nên vẫn bảo trì được nếu cố ý tắt event trigger). Vết thao tác BR-23: tạo thì bắt buộc có người thực hiện, sửa thì tự ghi người sửa và thời điểm sửa. "
      "Tự kích hoạt: tạo hợp đồng Pending, ghi hóa đơn Completed, trigger tự chuyển Active. Hủy muộn: ứng dụng chỉ gửi trạng thái Cancelled, "
      "trigger BEFORE tự đổi thành Late_Cancelled nếu còn dưới 24 giờ, rồi trigger AFTER trừ một buổi. Gia hạn tự động là thủ tục vì PostgreSQL không có "
@@ -356,7 +355,7 @@ note("Trigger nghiệp vụ", C, 1,
 # ----------------------------------------------------------------------------
 # SLIDE 8 - TRUY VẤN 1
 # ----------------------------------------------------------------------------
-s = base_slide("Truy vấn phức hợp (1/2): top HLV, nhóm tuổi", C, 1)
+s = base_slide("Truy vấn phức hợp (1/2): top HLV, nhóm tuổi", A, 1)
 code_box(s, Inches(0.5), Inches(1.4), Inches(6.3), Inches(5.3),
          "-- Q2: Top 3 HLV theo giờ dạy trong tháng\n"
          "WITH trainer_teaching_hours AS (\n"
@@ -387,7 +386,7 @@ add_text(s, Inches(7.0), Inches(4.55), Inches(6.1), Inches(2.3),
           "Q8: CTE + CASE + window DENSE_RANK PARTITION BY",
           "Window function tính sau GROUP BY nên phải bọc CTE rồi mới lọc theo hạng"],
          size=15, bullet=True)
-note("Truy vấn phức hợp 1", C, 1,
+note("Truy vấn phức hợp 1", A, 1,
      "Truy vấn 2 gộp giờ dạy kèm 1-1 và giờ đứng lớp nhóm bằng UNION ALL trong CTE rồi lấy top 3. UNION ALL giữ mọi dòng, không khử trùng lặp, "
      "đúng nghiệp vụ vì hai ca cùng độ dài vẫn phải cộng. Truy vấn 8 phân nhóm tuổi bằng CASE rồi dùng DENSE_RANK theo từng nhóm tuổi; "
      "đồng hạng cùng thứ hạng và hạng sau không nhảy cóc. Vì window function tính sau WHERE nên muốn lọc hạng 1 phải bọc trong CTE. "
@@ -396,7 +395,7 @@ note("Truy vấn phức hợp 1", C, 1,
 # ----------------------------------------------------------------------------
 # SLIDE 9 - TRUY VẤN 2
 # ----------------------------------------------------------------------------
-s = base_slide("Truy vấn phức hợp (2/2): xếp hạng, kiểm toán", C, 1)
+s = base_slide("Truy vấn phức hợp (2/2): xếp hạng, kiểm toán", A, 1)
 code_box(s, Inches(0.5), Inches(1.4), Inches(6.3), Inches(3.2),
          "-- Q9: xếp hạng doanh thu hội viên\n"
          "SELECT u.full_name, SUM(bl.amount),\n"
@@ -422,7 +421,7 @@ add_text(s, Inches(0.5), Inches(4.85), Inches(12.6), Inches(2.0),
           "Q10 là truy vấn KIỂM TOÁN: kết quả đúng là 0 dòng vì EXCLUDE và trigger đã chặn trùng lịch từ lúc ghi",
           "So sánh bộ (event_type, event_id) vì class_id và booking_id là hai dãy số có thể trùng giá trị"],
          size=16, bullet=True)
-note("Truy vấn phức hợp 2", C, 1,
+note("Truy vấn phức hợp 2", A, 1,
      "Truy vấn 9 xếp hạng hội viên theo tổng tiền thực chi bằng DENSE_RANK không phân vùng. Truy vấn 10 là self-join tìm hai sự kiện của cùng HLV "
      "chồng giờ, điều kiện chồng lấn là start1 nhỏ hơn end2 và end1 lớn hơn start2, dùng dấu nghiêm ngặt để hai ca nối tiếp không bị tính. "
      "Kết quả kỳ vọng là 0 dòng, vì CSDL đã chặn dữ liệu trùng ngay lúc ghi; đây là công cụ kiểm toán. Nhóm đã sửa một lỗi tinh vi: "
@@ -431,7 +430,7 @@ note("Truy vấn phức hợp 2", C, 1,
 # ----------------------------------------------------------------------------
 # SLIDE 10 - KẾT QUẢ KIỂM THỬ
 # ----------------------------------------------------------------------------
-s = base_slide("Kết quả kiểm thử", C, 1)
+s = base_slide("Kết quả kiểm thử", B, 1)
 cards = [
     (STATS["tc_total"], "Mục 5.1 - Test ràng buộc",
      "68 âm tính (TC) + 30 dương tính (TP), kiểm đúng SQLSTATE"),
@@ -453,11 +452,11 @@ add_text(s, Inches(0.5), Inches(4.8), Inches(12.3), Inches(2.0),
           "Truy vấn Q1-Q9 trả về dòng dữ liệu; Q10 (kiểm toán trùng lịch) trả về 0 dòng đúng như kỳ vọng",
           "Tra cứu theo chỉ mục 0,04 - 0,2 ms so với 10 - 30 ms khi quét tuần tự; kiểm tra trùng lịch PT dùng chỉ mục GiST ex_pt_trainer_no_overlap"],
          size=16, bullet=True)
-note("Kết quả kiểm thử", C, 1,
+note("Kết quả kiểm thử", B, 1,
      "Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE "
      "và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây "
      "trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây "
-     "khi quét tuần tự. Dữ liệu mẫu 715 dòng, ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; "
+     "khi quét tuần tự. Dữ liệu mẫu 9.925 dòng (3.000 người dùng, 500 thiết bị, sinh bằng generate_series), ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; "
      "nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.")
 
 # ----------------------------------------------------------------------------
@@ -546,9 +545,8 @@ note("Demo dòng lệnh", B, 1.5,
 s = base_slide("Phân công trình bày", None)
 rows = [
     ["Thành viên", "Phần trình bày", "Slide", "Thời lượng"],
-    [A, "Mở đầu, bài toán, quy tắc nghiệp vụ, EER, demo giao diện", "1 - 4, 12", "~ 6 phút"],
-    [B, "Lược đồ logic, chuẩn hóa, EXCLUDE, RBAC, demo dòng lệnh", "5, 6, 11, 13", "~ 4 phút"],
-    [C, "Trigger nghiệp vụ, truy vấn phức hợp, kết quả kiểm thử", "7 - 10", "~ 4 phút"],
+    [A, "Mở đầu, bài toán, quy tắc nghiệp vụ, EER, truy vấn phức hợp, demo giao diện", "1 - 4, 8, 9, 12", "~ 8 phút"],
+    [B, "Lược đồ logic, chuẩn hóa, EXCLUDE, trigger, kết quả kiểm thử, RBAC, demo dòng lệnh", "5 - 7, 10, 11, 13", "~ 6 phút"],
     ["Cả nhóm", "Hỏi đáp (Q&A)", "15", "~ 3 phút"],
 ]
 table(s, Inches(0.5), Inches(1.5), Inches(12.3), rows, [2.6, 6.4, 1.6, 1.7], size=18, row_h=0.8)

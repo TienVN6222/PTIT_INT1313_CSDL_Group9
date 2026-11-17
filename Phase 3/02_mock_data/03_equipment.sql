@@ -12,7 +12,7 @@
 
 -- 8. THIẾT BỊ PHÒNG TẬP (equipment)
 -- ----------------------------------------------------------------------------
--- Tổng cộng 200 thiết bị: 15 thiết bị ban đầu và 185 thiết bị bổ sung.
+-- Tổng cộng 500 thiết bị: 15 thiết bị ban đầu, 185 thiết bị bổ sung (16-200) và 300 thiết bị sinh tự động (201-500).
 INSERT INTO equipment (equipment_id, room_id, equipment_name, serial_number, purchase_date, depreciation_months, status) VALUES
 (1, 2, 'Máy chạy bộ Technogym Skillrun 7000', 'TG-RUN-2023-001', '2023-01-15', 36, 'Operational'),
 (2, 2, 'Máy chạy bộ Technogym Skillrun 7000', 'TG-RUN-2023-002', '2023-01-15', 36, 'Operational'),
@@ -215,6 +215,31 @@ INSERT INTO equipment (equipment_id, room_id, equipment_name, serial_number, pur
 (199, 2, 'Máy chèo thuyền Concept2', 'CD-2026-0199', '2022-08-11', 48, 'Operational'),
 (200, 4, 'Bục step aerobic', 'FN-2022-0200', '2023-09-12', 84, 'Operational');
 
-ALTER SEQUENCE equipment_equipment_id_seq RESTART WITH 201;
+-- ----------------------------------------------------------------------------
+-- 8b. SINH TỰ ĐỘNG 300 THIẾT BỊ (equipment_id 201..500) - đáp ứng yêu cầu >= 500 thiết bị
+-- ----------------------------------------------------------------------------
+-- Dữ liệu XÁC ĐỊNH (không random()): phòng, loại máy, ngày mua, khấu hao đều suy ra từ id.
+--  * Chỉ dùng phòng 1-5 (phòng 6 đang Under_Maintenance); mã serial 'XX-YYYY-NNNN' duy nhất nhờ NNNN = id
+--  * Tên máy theo loại phòng: 1 Yoga, 2 Cardio, 3 Tạ, 4 Functional, 5 Pilates
+--  * purchase_date = ngày cố định trong quá khứ (2021-2025), luôn <= CURRENT_DATE
+--  * status: phần lớn 'Operational', id chia hết 20 -> 'Decommissioned'; KHÔNG sinh thêm 'Under_Maintenance'
+INSERT INTO equipment (equipment_id, room_id, equipment_name, serial_number, purchase_date, depreciation_months, status)
+SELECT
+    g.id,
+    g.room,
+    (ARRAY[
+        ARRAY['Thảm Yoga Liforme', 'Gối thiền Yoga', 'Bóng Yoga chống nổ', 'Dây kháng lực Yoga', 'Bộ tạ tay nhẹ cho Yoga', 'Gạch Yoga Manduka'],
+        ARRAY['Máy chạy bộ Technogym', 'Xe đạp tập Life Fitness', 'Máy chèo thuyền Concept2', 'Máy elliptical Precor', 'Máy leo cầu thang Matrix', 'Máy đi bộ nghiêng Fairtex'],
+        ARRAY['Giàn squat rack Rogue', 'Ghế tập bụng', 'Máy leg extension Matrix', 'Máy seated row Life Fitness', 'Giá tạ đĩa Olympic', 'Bộ tạ tay Hex Dumbbell'],
+        ARRAY['Dây battle rope', 'Xe đạp air bike Assault', 'Bục step aerobic', 'Bộ tạ chuông Kettlebell', 'Bóng tập Medicine Ball', 'Dây kéo resistance'],
+        ARRAY['Giường Pilates Reformer Merrithew', 'Khung Pilates Cadillac', 'Ghế Pilates Combo Chair', 'Vòng Pilates', 'Máy Pilates Spine Corrector', 'Bóng Pilates Overball']
+    ])[g.room][(g.id / 5) % 6 + 1],
+    (ARRAY['YG', 'CD', 'WT', 'FN', 'PL'])[g.room] || '-' || (2021 + g.id % 5) || '-' || lpad(g.id::text, 4, '0'),
+    DATE '2021-01-01' + ((g.id * 53) % 1800),            -- 2021-01-01 .. ~2025-12-05
+    (ARRAY[24, 36, 48, 60, 72, 84, 96])[g.id % 7 + 1],
+    CASE WHEN g.id % 20 = 0 THEN 'Decommissioned' ELSE 'Operational' END
+FROM (SELECT id, id % 5 + 1 AS room FROM generate_series(201, 500) AS id) AS g;
+
+ALTER SEQUENCE equipment_equipment_id_seq RESTART WITH 501;
 
 -- ----------------------------------------------------------------------------

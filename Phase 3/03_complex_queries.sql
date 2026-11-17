@@ -305,7 +305,8 @@ FROM
 WHERE
     rank_in_bracket = 1
 ORDER BY
-    age_bracket ASC;
+    age_bracket ASC,
+    plan_name ASC;
 
 
 -- ============================================================================

@@ -180,7 +180,7 @@ Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu v�
 
 ### Phương pháp
 
-1. Dữ liệu mẫu gốc chỉ có ~700 bản ghi, quá nhỏ để bộ tối ưu hóa chọn dùng chỉ mục. Script sinh tạm **100.000 tài khoản, 200.000 hóa đơn và 120.000 ca PT** bằng `generate_series()`, sau đó chạy `ANALYZE`.
+1. Dữ liệu mẫu (khoảng 9.900 bản ghi, gồm 3.000 người dùng và 500 thiết bị) vẫn quá nhỏ để bộ tối ưu hóa chọn dùng chỉ mục. Script sinh tạm **100.000 tài khoản, 200.000 hóa đơn và 120.000 ca PT** bằng `generate_series()`, sau đó chạy `ANALYZE`.
 2. Các trigger nghiệp vụ của người dùng trên `billing_log` và `pt_booking` (BR-08, BR-18, kiểm tra chồng lấn chéo bảng, điền `created_by_user_id`...) sẽ từ chối dữ liệu tổng hợp vì không gắn với hợp đồng/hội viên thực. Bài kiểm thử chỉ đo hiệu năng **đọc**, nên `ALTER TABLE ... DISABLE TRIGGER USER` chỉ được dùng **trong lúc nạp hàng loạt, bên trong giao dịch sẽ bị `ROLLBACK`**, và trigger được bật lại trước khi đo. Vì event trigger BR-10 chặn `ALTER TABLE ... billing_log`, script (chạy bằng superuser) trước đó đặt lối thoát bảo trì `SET LOCAL app.allow_billing_maintenance = 'on'` (chỉ hiệu lực trong giao dịch này); các bản ghi tổng hợp nêu rõ `created_by_user_id` vì cột `NOT NULL` vẫn có hiệu lực. Mọi ràng buộc `CHECK`/`UNIQUE`/`EXCLUDE`/`FOREIGN KEY` vẫn có hiệu lực suốt quá trình nạp.
 3. Mỗi truy vấn được chạy `EXPLAIN (ANALYZE)` hai lần:
    - **(a) Có chỉ mục:** bộ tối ưu hóa chọn kế hoạch thực thi bình thường.

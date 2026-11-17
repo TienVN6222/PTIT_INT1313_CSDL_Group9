@@ -34,24 +34,24 @@ Sơ đồ EER nằm trong báo cáo mục 2.1. Điểm quan trọng là chuyên 
 UNIQUE chỉ so sánh bằng, CHECK chỉ nhìn một dòng, nên không diễn đạt được hai khoảng thời gian chồng nhau. EXCLUDE làm được: không tồn tại hai dòng cùng trainer_user_id mà khoảng thời gian giao nhau, toán tử && là overlap của kiểu range. Dùng nửa mở [) nên hai ca nối tiếp không bị báo trùng oan. Phần ca PT có điều kiện WHERE để ca đã hủy không chiếm giờ. Với trùng giữa hai bảng khác nhau, EXCLUDE không làm được nên nhóm dùng trigger có khóa tư vấn để hai giao dịch đồng thời không cùng lọt qua.
 
 ## Slide 7 - Trigger nghiệp vụ
-**Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
+**Người trình bày:** Lê Hòa Thuận  |  **Thời lượng:** ~1 phút
 
 Năm cơ chế tiêu biểu. Hóa đơn bất biến có bốn lớp: trigger áp dụng cho mọi tài khoản; chỉ cấp SELECT, INSERT; mọi đối tượng thuộc role NOLOGIN gym_owner nên không tài khoản đăng nhập nào là chủ sở hữu; event trigger chặn ALTER, DROP bảng, trigger và hàm bất biến kể cả với superuser (superuser là gốc tin cậy nên vẫn bảo trì được nếu cố ý tắt event trigger). Vết thao tác BR-23: tạo thì bắt buộc có người thực hiện, sửa thì tự ghi người sửa và thời điểm sửa. Tự kích hoạt: tạo hợp đồng Pending, ghi hóa đơn Completed, trigger tự chuyển Active. Hủy muộn: ứng dụng chỉ gửi trạng thái Cancelled, trigger BEFORE tự đổi thành Late_Cancelled nếu còn dưới 24 giờ, rồi trigger AFTER trừ một buổi. Gia hạn tự động là thủ tục vì PostgreSQL không có bộ lập lịch, cron gọi mỗi ngày; thủ tục idempotent. Cuối cùng created_by lưu vết người thao tác.
 
 ## Slide 8 - Truy vấn phức hợp 1
-**Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
+**Người trình bày:** Lê Hoàng Tiến  |  **Thời lượng:** ~1 phút
 
 Truy vấn 2 gộp giờ dạy kèm 1-1 và giờ đứng lớp nhóm bằng UNION ALL trong CTE rồi lấy top 3. UNION ALL giữ mọi dòng, không khử trùng lặp, đúng nghiệp vụ vì hai ca cùng độ dài vẫn phải cộng. Truy vấn 8 phân nhóm tuổi bằng CASE rồi dùng DENSE_RANK theo từng nhóm tuổi; đồng hạng cùng thứ hạng và hạng sau không nhảy cóc. Vì window function tính sau WHERE nên muốn lọc hạng 1 phải bọc trong CTE. Cả mười truy vấn có trong file 03 và trong giao diện web.
 
 ## Slide 9 - Truy vấn phức hợp 2
-**Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
+**Người trình bày:** Lê Hoàng Tiến  |  **Thời lượng:** ~1 phút
 
 Truy vấn 9 xếp hạng hội viên theo tổng tiền thực chi bằng DENSE_RANK không phân vùng. Truy vấn 10 là self-join tìm hai sự kiện của cùng HLV chồng giờ, điều kiện chồng lấn là start1 nhỏ hơn end2 và end1 lớn hơn start2, dùng dấu nghiêm ngặt để hai ca nối tiếp không bị tính. Kết quả kỳ vọng là 0 dòng, vì CSDL đã chặn dữ liệu trùng ngay lúc ghi; đây là công cụ kiểm toán. Nhóm đã sửa một lỗi tinh vi: mã của lớp và mã của ca PT có thể trùng số nên phải so sánh cặp (loại, mã).
 
 ## Slide 10 - Kết quả kiểm thử
-**Người trình bày:** Trần Minh Tiến  |  **Thời lượng:** ~1 phút
+**Người trình bày:** Lê Hòa Thuận  |  **Thời lượng:** ~1 phút
 
-Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây khi quét tuần tự. Dữ liệu mẫu 715 dòng, ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.
+Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây khi quét tuần tự. Dữ liệu mẫu 9.925 dòng (3.000 người dùng, 500 thiết bị, sinh bằng generate_series), ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.
 
 ## Slide 11 - RBAC
 **Người trình bày:** Lê Hòa Thuận  |  **Thời lượng:** ~0.5 phút

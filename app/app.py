@@ -1034,7 +1034,8 @@ FROM
 WHERE
     rank_in_bracket = 1
 ORDER BY
-    age_bracket ASC;""",
+    age_bracket ASC,
+    plan_name ASC;""",
             "chart_type": "bar",
             "x": "age_bracket",
             "y": "total_subscriptions"

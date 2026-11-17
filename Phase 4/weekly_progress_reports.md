@@ -151,4 +151,6 @@
 | Ứng dụng và triển khai | `app/app.py` (445 dòng thay đổi theo `--stat`), `docker-compose.yml`, `.env.example`, `README.md` (một phần đã `git add`) | Cập nhật giao diện (đăng ký gói, hủy ca PT, gia hạn tự động, chọn người thao tác) và cấu hình Docker/biến môi trường. |
 | Phase 4 | thư mục mới `Phase 4/` | Cẩm nang bảo vệ SQL, báo cáo tuần, mẫu đánh giá chéo, bộ slide. |
 
+**Mở rộng dữ liệu mẫu:** `02_mock_data/02_users_and_profiles.sql` và `03_equipment.sql` được mở rộng lên 3.000 người dùng và 500 thiết bị (sinh bằng `generate_series()`) theo yêu cầu tối thiểu của giảng viên; tổng dữ liệu mẫu 9.925 bản ghi.
+
 **Lưu ý trung thực:** các số liệu kiểm thử nêu trong `Phase 3/07_test_results.md` được cập nhật bởi bước tích hợp cuối; nhóm cần chạy lại các script trước khi nộp. Không thể xác định từ Git ai là người thực hiện từng thay đổi nói trên.

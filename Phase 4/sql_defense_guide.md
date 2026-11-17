@@ -869,7 +869,8 @@ WHERE
     rank_in_bracket <= 2
 ORDER BY
     age_bracket,
-    rank_in_bracket;
+    rank_in_bracket,
+    plan_name;
 ```
 
 **8b. "Mỗi nhóm tuổi chỉ đúng 1 dòng, hòa thì chọn tên gói theo thứ tự chữ cái"** – dùng `ROW_NUMBER()` với tiêu chí phá hòa:

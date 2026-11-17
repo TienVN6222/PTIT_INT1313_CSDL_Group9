@@ -10,7 +10,8 @@
 -- Nội dung: Tài khoản, vai trò người dùng và hồ sơ member/trainer/staff.
 
 -- 5. TÀI KHOẢN NGƯỜI DÙNG (user_account)
--- Gồm: 2 Admin (1-2), 2 Staff (3-4), 6 Trainers (5-10), 20 Members (11-30)
+-- Gồm: 2 Admin (1-2), 2 Staff (3-4), 6 Trainers (5-10), 20 Members thủ công (11-30)
+-- và 2.970 Members sinh tự động (31-3000) => tổng cộng 3.000 tài khoản (xem khối 5b ở cuối file).
 -- ----------------------------------------------------------------------------
 INSERT INTO user_account (user_id, full_name, email, phone, dob, emergency_contact, password_hash, status) VALUES
 -- Admin
@@ -47,8 +48,6 @@ INSERT INTO user_account (user_id, full_name, email, phone, dob, emergency_conta
 (28, 'Trần Đình Trọng', 'trong.td@binhdinh.vn', '0911000035', '1997-04-25', 'Bố: 0911000036', '$2a$12$K8pQ0q1Y7F6a5B4c3d2e1f0g', 'Active'),
 (29, 'Phan Tuấn Tài', 'tai.pt@viettel.vn', '0911000037', '2001-01-07', 'Mẹ: 0911000038', '$2a$12$K8pQ0q1Y7F6a5B4c3d2e1f0g', 'Active'),
 (30, 'Khuất Văn Khang', 'khang.kv@viettel.vn', '0911000039', '2003-05-11', 'Bố: 0911000040', '$2a$12$K8pQ0q1Y7F6a5B4c3d2e1f0g', 'Active');
-
-ALTER SEQUENCE user_account_user_id_seq RESTART WITH 31;
 
 -- ----------------------------------------------------------------------------
 -- 6. GÁN VAI TRÒ CHO NGƯỜI DÙNG (user_role)
@@ -110,3 +109,60 @@ INSERT INTO member_profile (user_id, health_notes) VALUES
 (30, 'Cần tăng khối lượng cơ toàn thân và tập tăng sức bật');
 
 -- ----------------------------------------------------------------------------
+-- 5b. SINH TỰ ĐỘNG 2.970 HỘI VIÊN (user_id 31..3000) - đáp ứng yêu cầu >= 3000 user
+-- ----------------------------------------------------------------------------
+-- Dữ liệu hoàn toàn XÁC ĐỊNH (không dùng random()): mọi thuộc tính suy ra từ id bằng
+-- phép chia lấy dư trên các mảng họ / tên đệm / tên Việt Nam, nên nạp lại luôn ra cùng kết quả.
+--  * email : slug ASCII (tên.họ) + id, luân phiên @gmail.com / @yahoo.com / @outlook.com
+--  * phone : '0921' + id 6 chữ số  (duy nhất, tiền tố 0921 chưa dùng ở dữ liệu thủ công/test)
+--  * dob   : 1970-01-01 + (id*37 mod 11000) ngày => sinh trước ~2000-01 nên luôn >= 18 tuổi (BR-03 cần >= 12)
+--  * status: id chia hết 50 -> 'Suspended', chia hết 25 -> 'Inactive', còn lại 'Active'
+--  * emergency_contact: "<quan hệ>: <sđt 0922xxxxxx>" giống định dạng các dòng thủ công
+INSERT INTO user_account (user_id, full_name, email, phone, dob, emergency_contact, password_hash, status)
+SELECT
+    g.id,
+    g.family || ' ' || g.middle || ' ' || g.given,
+    -- slug ASCII: bỏ dấu tiếng Việt bằng translate(), ghép tên + họ + id
+    translate(lower(g.given || '.' || g.family), 'àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ',
+                                                  'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')
+        || g.id || (ARRAY['@gmail.com', '@yahoo.com', '@outlook.com'])[g.id % 3 + 1],
+    '0921' || lpad(g.id::text, 6, '0'),
+    DATE '1970-01-01' + ((g.id * 37) % 11000),
+    (ARRAY['Mẹ', 'Bố', 'Vợ', 'Chồng', 'Anh trai', 'Chị', 'Em', 'Bạn'])[g.id % 8 + 1]
+        || ': 0922' || lpad(g.id::text, 6, '0'),
+    '$2a$12$K8pQ0q1Y7F6a5B4c3d2e1f0g',
+    CASE WHEN g.id % 50 = 0 THEN 'Suspended'
+         WHEN g.id % 25 = 0 THEN 'Inactive'
+         ELSE 'Active' END
+FROM (
+    SELECT
+        id,
+        (ARRAY['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Phan', 'Vũ', 'Võ', 'Đặng',
+               'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý', 'Đinh', 'Trịnh', 'Mai', 'Tạ'])[(id * 7) % 20 + 1] AS family,
+        (ARRAY['Văn', 'Thị', 'Minh', 'Quốc', 'Hữu', 'Ngọc', 'Thanh', 'Đức', 'Thu', 'Hoài',
+               'Gia', 'Xuân', 'Kim', 'Bảo', 'Tuấn'])[(id * 3) % 15 + 1] AS middle,
+        (ARRAY['An', 'Bình', 'Cường', 'Dũng', 'Hà', 'Hải', 'Hạnh', 'Hiếu', 'Hùng', 'Hương',
+               'Khoa', 'Lan', 'Linh', 'Long', 'Mai', 'Nam', 'Nga', 'Phong', 'Phúc', 'Quân',
+               'Quỳnh', 'Sơn', 'Thảo', 'Thịnh', 'Trang', 'Trung', 'Tú', 'Vy', 'Yến', 'Đạt'])[(id + id / 30) % 30 + 1] AS given
+    FROM generate_series(31, 3000) AS id
+) AS g;
+
+-- Gán vai trò Member (role_id = 3) cho 2.970 hội viên sinh tự động
+INSERT INTO user_role (user_id, role_id)
+SELECT id, 3 FROM generate_series(31, 3000) AS id;
+
+-- Hồ sơ hội viên (member_profile) cho 2.970 hội viên sinh tự động - ghi chú sức khỏe lấy theo id mod 8
+INSERT INTO member_profile (user_id, health_notes)
+SELECT id,
+       (ARRAY['Thể lực bình thường, muốn duy trì sức khỏe tổng quát',
+              'Muốn giảm mỡ và cải thiện sức bền tim mạch',
+              'Người mới bắt đầu, cần hướng dẫn kỹ thuật cơ bản',
+              'Tiền sử đau lưng nhẹ, tránh các bài tập tạ nặng',
+              'Mục tiêu tăng cơ, lịch tập 4 buổi mỗi tuần',
+              'Huyết áp hơi cao, cần theo dõi cường độ tập',
+              'Tập Yoga/Pilates để cải thiện độ dẻo dai và tư thế',
+              'Từng chấn thương đầu gối, cần chế độ tập ít áp lực'])[id % 8 + 1]
+FROM generate_series(31, 3000) AS id;
+
+-- Đặt lại sequence sau TẤT CẢ các INSERT user_id cố định / sinh tự động ở trên
+ALTER SEQUENCE user_account_user_id_seq RESTART WITH 3001;
