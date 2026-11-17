@@ -27,15 +27,15 @@ EER_FALLBACK = os.path.join(EER_DIR, "1_mermaid-diagram.png")
 
 # ----------------------------------------------------------------------------
 # SỐ LIỆU CÓ THỂ THAY ĐỔI - sửa tại đây rồi chạy lại script
-# (số liệu lấy từ lần chạy kiểm thử cuối trên CSDL mới, ngày 16/11/2026)
+# (số liệu lấy từ lần chạy kiểm thử cuối trên CSDL mới, ngày 17/11/2026)
 # ----------------------------------------------------------------------------
 STATS = {
     "tc_total": "109/109",        # 05_constraint_test_cases.sql (TC-01..74 âm tính, TP-01..35 dương tính)
-    "rbac_total": "61/61",        # 09_rbac_test_cases.sql (gồm EV-01..EV-13)
+    "rbac_total": "66/66",        # 09_rbac_test_cases.sql (gồm EV-01..EV-13, SY-01..SY-05)
     "perf_total": "8/8",          # 06_performance_test_cases.sql
     "perf_limit_ms": "200",
     "perf_rows": "100k user, 200k hóa đơn, 120k ca PT",
-    "mock_rows": "9.925",
+    "mock_rows": "9.928",
     "tables": "18",
     "business_rules": "26",
     "triggers_secdef": "24",
@@ -454,9 +454,9 @@ add_text(s, Inches(0.5), Inches(4.8), Inches(12.3), Inches(2.0),
          size=16, bullet=True)
 note("Kết quả kiểm thử", B, 1,
      "Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE "
-     "và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây "
+     "và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi sáu test phân quyền đạt cả, gồm các test event trigger bảo vệ hóa đơn và năm test kiểm tra ma trận quyền ứng dụng khớp GRANT. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây "
      "trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây "
-     "khi quét tuần tự. Dữ liệu mẫu 9.925 dòng (3.000 người dùng, 500 thiết bị, sinh bằng generate_series), ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; "
+     "khi quét tuần tự. Dữ liệu mẫu 9.928 dòng (3.000 người dùng, 500 thiết bị, sinh bằng generate_series), ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 17/11/2026; "
      "nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.")
 
 # ----------------------------------------------------------------------------
@@ -478,7 +478,7 @@ add_text(s, Inches(7.0), Inches(1.4), Inches(6.1), Inches(5.4),
           "Trigger trừ buổi phải chạy bằng quyền chủ sở hữu hàm mới hoạt động",
           "SET search_path = public, pg_temp chống chiếm quyền qua search_path",
           f"Hiện {STATS['triggers_secdef']}/{STATS['triggers_secdef']} hàm trigger đều SECURITY DEFINER",
-          "Hai lớp RBAC: bảng role/permission (ứng dụng) và role PostgreSQL (CSDL)"],
+          "Hai lớp RBAC: bảng role/permission (ứng dụng) và role PostgreSQL (CSDL); test SY-01..05 tự phát hiện lệch"],
          size=17, bullet=True)
 note("RBAC", B, 0.5,
      "Phân quyền ở tầng CSDL nên dù ai kết nối thẳng bằng psql vẫn bị giới hạn. Năm role nhóm không đăng nhập được, năm tài khoản demo thừa hưởng. "
@@ -525,7 +525,7 @@ code_box(s, Inches(0.4), Inches(1.35), Inches(12.5), Inches(5.45),
          "# Chạy bộ test ràng buộc 5.1 (109 test)\n"
          "docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management \\\n"
          "    -f /sql/05_constraint_test_cases.sql\n\n"
-         "# Chạy bộ test phân quyền 5.2 (61 test)\n"
+         "# Chạy bộ test phân quyền 5.2 (66 test)\n"
          "docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management \\\n"
          "    -f /sql/09_rbac_test_cases.sql\n\n"
          "# Đăng nhập bằng tài khoản lễ tân (mật khẩu demo_2026), thử đọc cột nhạy cảm\n"

@@ -131,7 +131,7 @@ GRANT USAGE ON SCHEMA public TO gym_role_admin, gym_role_receptionist,
                                 gym_role_trainer, gym_role_technician, gym_role_member;
 
 -- ----------------------------------------------------------------------------
--- 3.1. gym_role_admin (quyền ứng dụng 1-10): toàn quyền DML, TRỪ các hạn chế sau
+-- 3.1. gym_role_admin (quyền ứng dụng 1-11): toàn quyền DML, TRỪ các hạn chế sau
 --   * billing_log chỉ SELECT, INSERT (BR-10: hóa đơn bất biến, Admin cũng không sửa/xóa).
 --   * user_account.password_hash không được SELECT (vẫn được INSERT/UPDATE để đặt mật khẩu).
 -- Không cấp TRUNCATE/TRIGGER/REFERENCES vì TRUNCATE sẽ vượt qua mọi giới hạn DELETE.
@@ -150,7 +150,7 @@ GRANT SELECT (user_id, full_name, email, phone, dob, emergency_contact, status, 
     ON user_account TO gym_role_admin;
 
 -- ----------------------------------------------------------------------------
--- 3.2. gym_role_receptionist (quyền ứng dụng 1, 2, 3, 5, 6, 7): không có DELETE ở bất kỳ bảng nào
+-- 3.2. gym_role_receptionist (quyền ứng dụng 1, 2, 3, 5, 6, 7, 11): không có DELETE ở bất kỳ bảng nào
 -- ----------------------------------------------------------------------------
 GRANT SELECT (user_id, full_name, email, phone, dob, emergency_contact, status, created_at)
     ON user_account TO gym_role_receptionist;
@@ -182,7 +182,7 @@ GRANT USAGE ON SEQUENCE user_account_user_id_seq,
     TO gym_role_receptionist;
 
 -- ----------------------------------------------------------------------------
--- 3.3. gym_role_trainer (quyền ứng dụng 1, 6, 7): chủ yếu chỉ đọc, được điểm danh/hoàn thành ca
+-- 3.3. gym_role_trainer (quyền ứng dụng 1, 7, 11): chủ yếu chỉ đọc, được điểm danh/hoàn thành ca
 -- ----------------------------------------------------------------------------
 GRANT SELECT (user_id, full_name, phone, emergency_contact)
     ON user_account TO gym_role_trainer;
@@ -212,7 +212,7 @@ GRANT USAGE ON SEQUENCE equipment_equipment_id_seq,
     TO gym_role_technician;
 
 -- ----------------------------------------------------------------------------
--- 3.5. gym_role_member (quyền ứng dụng 1): chỉ xem danh mục công khai
+-- 3.5. gym_role_member (quyền ứng dụng 11): chỉ xem danh mục công khai
 -- ----------------------------------------------------------------------------
 GRANT SELECT ON membership_plan, facilities_room TO gym_role_member;
 -- class_schedule: không cấp created_by_user_id (BR-23: vết người thực hiện là dữ liệu nội bộ của nhân viên).

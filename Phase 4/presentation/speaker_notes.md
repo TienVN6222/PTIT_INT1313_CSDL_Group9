@@ -51,7 +51,7 @@ Truy vấn 9 xếp hạng hội viên theo tổng tiền thực chi bằng DENSE
 ## Slide 10 - Kết quả kiểm thử
 **Người trình bày:** Lê Hòa Thuận  |  **Thời lượng:** ~1 phút
 
-Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi mốt test phân quyền đạt cả, gồm cả các test event trigger bảo vệ hóa đơn. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây khi quét tuần tự. Dữ liệu mẫu 9.925 dòng (3.000 người dùng, 500 thiết bị, sinh bằng generate_series), ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 16/11/2026; nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.
+Ba bộ kiểm thử. Mục 5.1: một trăm linh chín test ràng buộc đạt cả, gồm 74 test âm tính và 35 test dương tính; mỗi test kiểm đúng mã lỗi SQLSTATE và chạy trong savepoint nên độc lập. Mục 5.2: sáu mươi sáu test phân quyền đạt cả, gồm các test event trigger bảo vệ hóa đơn và năm test kiểm tra ma trận quyền ứng dụng khớp GRANT. Mục 4.2: tám phép đo hiệu năng đều dưới 200 mili giây trên một trăm nghìn người dùng, hai trăm nghìn hóa đơn và 120 nghìn ca PT; tra cứu theo chỉ mục chỉ 0,04 đến 0,2 mili giây so với 10 đến 30 mili giây khi quét tuần tự. Dữ liệu mẫu 9.928 dòng (3.000 người dùng, 500 thiết bị, sinh bằng generate_series), ngày tháng tính tương đối. Số liệu lấy từ lần chạy cuối ngày 17/11/2026; nếu sửa lại CSDL thì chạy lại ba script rồi cập nhật các số này.
 
 ## Slide 11 - RBAC
 **Người trình bày:** Lê Hòa Thuận  |  **Thời lượng:** ~0.5 phút

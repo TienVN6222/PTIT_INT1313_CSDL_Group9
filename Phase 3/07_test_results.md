@@ -2,7 +2,7 @@
 
 > **Môi trường kiểm thử:** PostgreSQL 16 (image `postgres:16-alpine`), nạp lần lượt `01_schema_ddl.sql` → `02_mock_data/01..08` → `04_triggers_views.sql` → `08_rbac_security.sql` (khi kiểm thử phân quyền).
 > **Ngày chạy:** 16/11/2026.
-> **Script:** [`05_constraint_test_cases.sql`](05_constraint_test_cases.sql) (mục 5.1, 109 test), [`06_performance_test_cases.sql`](06_performance_test_cases.sql) (mục 4.2, 8 test) và [`09_rbac_test_cases.sql`](09_rbac_test_cases.sql) (mục 5.2, 61 test). Cả ba script đều được bọc trong `BEGIN ... ROLLBACK` nên **không làm thay đổi dữ liệu mẫu**.
+> **Script:** [`05_constraint_test_cases.sql`](05_constraint_test_cases.sql) (mục 5.1, 109 test), [`06_performance_test_cases.sql`](06_performance_test_cases.sql) (mục 4.2, 8 test) và [`09_rbac_test_cases.sql`](09_rbac_test_cases.sql) (mục 5.2, 66 test). Cả ba script đều được bọc trong `BEGIN ... ROLLBACK` nên **không làm thay đổi dữ liệu mẫu**.
 > **Người thực hiện (BR-23):** mọi thao tác ghi vào 5 bảng giao dịch cần `app.current_user_id`; các script test tự đặt biến này ở đầu tập tin. Khi chạy SQL thủ công, hãy `SET app.current_user_id = '<user_id>';` trước, nếu không CSDL từ chối (lỗi `P0001`, `BR-23`) theo thiết kế.
 > **Nạp lại trên CSDL đã có (BR-10):** Bản nạp lại (01 `DROP` `billing_log`, 04 `DROP`/`CREATE` trigger và hàm bất biến) bị event trigger BR-10 chặn, kể cả với superuser. Cách đơn giản nhất là tạo CSDL mới (`docker compose down -v` rồi `docker compose up --build`). Nếu muốn nạp lại tại chỗ, superuser đặt lối thoát trong cùng phiên `psql` (`SET app.allow_billing_maintenance = 'on';` trước khi `\i` các tập tin) hoặc tắt event trigger bằng hai lệnh riêng `ALTER EVENT TRIGGER evt_protect_billing_log DISABLE;` và `ALTER EVENT TRIGGER evt_protect_billing_log_drop DISABLE;`, sau đó nạp lại 08 để tạo lại chúng. Script 06 tự đặt lối thoát này cho bước nạp dữ liệu hàng loạt.
 > **Dữ liệu mẫu tương đối theo ngày nạp:** các mốc thời gian trong `02_mock_data` được tính từ `CURRENT_DATE`/`CURRENT_TIMESTAMP` lúc nạp, nên các truy vấn "tháng này/quý này" luôn có dữ liệu. Các bảng kết quả dưới đây được sinh trực tiếp từ đầu ra `psql` thực tế; giá trị tuyệt đối của ngày giờ trong thông báo lỗi sẽ thay đổi theo ngày chạy, còn mã test, SQLSTATE và kết quả thì không.
@@ -166,7 +166,7 @@ Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu v�
 | BR-01 … BR-09, BR-11 … BR-21, BR-25, BR-26 | Đầy đủ ở CSDL | Thực thi bằng `CHECK`/`UNIQUE`/`EXCLUDE`/`FOREIGN KEY` và trigger; có test TC/TP tương ứng ở bảng trên. |
 | BR-10 (hóa đơn bất biến) | Đầy đủ ở CSDL (bốn lớp) | (1) Trigger `trg_billing_immutable_update/_delete/_truncate` chặn mọi role (TC-44..TC-49, TP-12..TP-14); (2) chỉ cấp `SELECT, INSERT` trên `billing_log` (AD-01..AD-03); (3) mọi đối tượng thuộc role `NOLOGIN` `gym_owner` nên không tài khoản đăng nhập nào `ALTER`/`DROP` được (EV-07..EV-12); (4) event trigger `evt_protect_billing_log`/`_drop` chặn cả superuser (EV-01..EV-05, EV-13). Giới hạn cố hữu: superuser là gốc tin cậy, vẫn bảo trì có chủ đích được bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'` (EV-06); thao tác phải tường minh. |
 | BR-19 (chặn khóa bảo trì) | Đầy đủ ở CSDL | Hai chiều: chặn xếp lịch mới vào phòng/thiết bị `Under_Maintenance` (TC-23, TC-34) và chặn chuyển phòng/thiết bị sang `Under_Maintenance` khi còn lớp / giữ chỗ `Reserved` tương lai (TC-69..TC-71); trạng thái thiết bị tự đồng bộ với `maintenance_log` (TP-31..TP-34; kỹ thuật viên chạy được trọn quy trình dưới role hạn chế, EA-03). |
-| BR-22 (RBAC) | Đầy đủ ở mức CSDL | Bảng `role_permission` (dữ liệu ma trận cho ứng dụng) và các lệnh `GRANT` trong `08_rbac_security.sql` được viết tay tương ứng, **không tự đồng bộ**; khi đổi một nơi phải cập nhật nơi còn lại. |
+| BR-22 (RBAC) | Đầy đủ ở mức CSDL | Bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` trong `08_rbac_security.sql` vẫn được duy trì thủ công ở hai nơi, nhưng mọi sai lệch được phát hiện tự động bởi SY-01..SY-05 (chạy lại `09_rbac_test_cases.sql` sau khi đổi một trong hai nơi). |
 | BR-23 (vết người thực hiện) | Đầy đủ ở CSDL | `created_by_user_id NOT NULL`, `updated_by_user_id`, `updated_at` và khóa ngoại trên 5 bảng; `trg_fill_created_by` từ chối `INSERT` khi chưa đặt `app.current_user_id` (TC-72), `trg_set_updated_by` ghi người sửa (TP-22, TP-35), từ chối `UPDATE` khi chưa đặt biến (TC-73) và cấm đổi `created_by_user_id` (TC-74). Mọi chương trình ghi dữ liệu phải đặt `app.current_user_id` (ứng dụng, bộ lập lịch qua `SCHEDULER_ACTOR_USER_ID`, script test); thủ công cần `SET app.current_user_id = '<id>'`. |
 | BR-24 (tự động gia hạn/ân hạn) | Đầy đủ khi có bộ lập lịch ngoài | Logic nằm trong thủ tục `sp_process_subscription_renewals` (kiểm thử với ngày giả, TC-66, TP-23..TP-26). Docker demo có service `scheduler` (`fitzone_renewal_scheduler`) gọi thủ tục khi khởi động và mỗi `RENEWAL_INTERVAL_SECONDS` giây; production dùng `pg_cron`/cron. Nếu không có bộ lập lịch nào chạy thì quy tắc theo thời gian không tự kích hoạt. |
 
@@ -314,7 +314,7 @@ Giải pháp: `ALTER FUNCTION ... SECURITY DEFINER SET search_path = public, pg_
 - Mốc thời gian không viết cứng: dùng `pg_temp.night_slot(n)` (21:00 của hôm nay + n ngày) và `pg_temp.next_late_slot()` (khung đêm kế tiếp cách hiện tại hơn 30 phút và dưới 24 giờ, dùng cho kịch bản hủy muộn BR-25).
 - BR-10 có bốn lớp bảo vệ. Các test AD-01..AD-03 kiểm tra lớp phân quyền (lỗi `42501` xảy ra trước khi trigger được kích hoạt); nhóm **EV-01..EV-13** kiểm tra lớp sở hữu và event trigger: superuser bị chặn `P0001`, role ứng dụng bị chặn `42501`, lối thoát bảo trì có chủ đích hoạt động, mọi đối tượng thuộc `gym_owner` và event trigger đang bật.
 
-### Kết quả: 61/61 test PASS
+### Kết quả: 66/66 test PASS
 
 | Mã | Vai trò | Kịch bản | SQLSTATE mong đợi | SQLSTATE thực tế | Kết quả | Thông báo |
 |---|---|---|---|---|---|---|
@@ -379,11 +379,36 @@ Giải pháp: `ALTER FUNCTION ... SECURITY DEFINER SET search_path = public, pg_
 | EV-11 | superuser | Mọi bảng, view, sequence, hàm, thủ tục trong schema public đều thuộc gym_owner | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | EV-12 | superuser | gym_owner NOLOGIN, không phải superuser; không gym_u_*/gym_role_* nào là thành viên của gym_owner | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | EV-13 | superuser | Event trigger evt_protect_billing_log (ddl_command_end) và _drop (sql_drop) đang bật | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| SY-01 | superuser | Ma trận quyền ứng dụng của Admin khớp GRANT của gym_role_admin (BR-22) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| SY-02 | superuser | Ma trận quyền ứng dụng của Receptionist khớp GRANT của gym_role_receptionist (BR-22) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| SY-03 | superuser | Ma trận quyền ứng dụng của Trainer khớp GRANT của gym_role_trainer (BR-22) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| SY-04 | superuser | Ma trận quyền ứng dụng của Technician khớp GRANT của gym_role_technician (BR-22) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| SY-05 | superuser | Ma trận quyền ứng dụng của Member khớp GRANT của gym_role_member (BR-22) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 
-Tổng: 61 test, 61 PASS, 0 FAIL.
+Tổng: 66 test, 66 PASS, 0 FAIL.
 
 ### Lưu ý triển khai
 
 - Chủ sở hữu bảng và superuser luôn vượt qua `GRANT`/`REVOKE`; vì vậy BR-10 còn có lớp trigger, lớp sở hữu bằng role `NOLOGIN` `gym_owner` và lớp event trigger. Giới hạn cố hữu duy nhất: superuser là gốc tin cậy của mọi DBMS nên vẫn có thể bảo trì có chủ đích bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`. Chạy lại `04_triggers_views.sql` khi event trigger đã tồn tại cũng cần lối thoát này.
 - Quyền chỉ áp dụng cho các bảng hiện có; bảng tạo mới sau này cần `GRANT` bổ sung (hoặc dùng `ALTER DEFAULT PRIVILEGES`).
-- Bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` của `08_rbac_security.sql` được duy trì thủ công song song, không tự đồng bộ (BR-22).
+- Bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` của `08_rbac_security.sql` vẫn được duy trì thủ công ở hai nơi, nhưng sai lệch được phát hiện tự động bởi SY-01..SY-05 (BR-22); khi đổi một nơi, chạy lại `09_rbac_test_cases.sql`.
+
+## 5.3. Kiểm tra sao lưu và khôi phục (NFR-AVL-01, NFR-SEC-03)
+
+Kiểm tra thủ công ngày 17/11/2026 trên bản Docker demo (image `fitzone-postgres:16`):
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Khởi tạo CSDL mới với TLS | Đạt |
+| Kết nối `sslmode=disable` | Bị từ chối (`pg_hba.conf rejects connection ... no encryption`) |
+| Kết nối `sslmode=require` | Thành công, TLSv1.3 |
+| Kết nối của ứng dụng web | TLSv1.3 |
+| 3 lần sao lưu với `BACKUP_RETENTION=2` | Chỉ giữ 2 bản mới nhất |
+| Nội dung tệp sao lưu | Bắt đầu bằng `Salted__` (đã mã hóa), không lộ tên bảng dạng văn bản |
+| `verify-restore.sh` | ĐẠT: khôi phục vào `<db>_restore_check`, 18 bảng khớp số dòng với CSDL đang chạy; sai mật khẩu thì thoát mã 1 |
+| Bộ test ràng buộc trên máy chủ TLS | 109/109 PASS |
+| Bộ test RBAC trên máy chủ TLS | 66/66 PASS |
+| Tạo lại stack demo, giữ volume | Dữ liệu nguyên vẹn |
+| `verify-pitr.sh` (PITR) | ĐẠT: bản nền `pg_basebackup` + phát lại WAL đã lưu trữ trên máy chủ tạm; 24 dòng ghi SAU bản nền đều được khôi phục; xoay vòng giữ 2 bản nền và dọn WAL cũ (`pg_archivecleanup`) vẫn ĐẠT; thiếu kho WAL thì thoát mã 1 |
+
+Chưa bao gồm: mã hóa tệp dữ liệu trên đĩa máy chủ (hạ tầng).

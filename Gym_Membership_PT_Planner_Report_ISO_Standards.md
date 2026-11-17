@@ -199,7 +199,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | --- | --- | --- | --- |
 | NFR-SEC-01 | Bảo mật | Đặc quyền tối thiểu: không role nào có `TRUNCATE`; Lễ tân không có `DELETE` ở bất kỳ bảng nào. | `REVOKE ALL ... FROM PUBLIC`, `GRANT` theo ma trận; kiểm thử RBAC |
 | NFR-SEC-02 | Bảo mật | Mật khẩu chỉ lưu dạng băm trong `user_account.password_hash`; cột này không đọc được bởi mọi role ứng dụng. | `GRANT SELECT` mức cột không gồm `password_hash` |
-| NFR-SEC-03 | Bảo mật | Mã hóa dữ liệu khi lưu trữ (encryption at rest) và kết nối TLS. | **Chỉ là yêu cầu triển khai** (đĩa mã hóa, TLS); bản demo chưa cài đặt, mật khẩu mẫu `gym_u_*` phải đổi khi triển khai thật |
+| NFR-SEC-03 | Bảo mật | Mã hóa dữ liệu khi lưu trữ (encryption at rest) và kết nối TLS. | **Đã thực thi trong demo:** TLS bắt buộc (`pg_hba.conf` `hostssl`, từ chối kết nối không mã hóa) và sao lưu mã hóa AES-256; mã hóa đĩa máy chủ thuộc hạ tầng; mật khẩu mẫu `gym_u_*` phải đổi khi triển khai thật |
 | NFR-SEC-04 | Bảo mật | Hóa đơn bất biến theo bốn lớp: trigger `trg_billing_immutable_*`; chỉ `SELECT, INSERT` cho mọi role ứng dụng (kể cả Admin); đối tượng thuộc role `NOLOGIN` `gym_owner`; event trigger `evt_protect_billing_log`/`_drop` chặn `ALTER`/`DROP`. | Superuser vẫn bảo trì được bằng thao tác tường minh; kiểm thử ràng buộc và RBAC |
 | NFR-SEC-05 | Bảo mật | Hàm trigger cần ghi vào bảng mà role gọi không có quyền phải chạy `SECURITY DEFINER` với `search_path` cố định (`public, pg_temp`). | Định nghĩa hàm trigger |
 | NFR-PERF-01 | Hiệu năng | Truy vấn tra cứu/tìm kiếm chính dưới 200 ms với 100.000–200.000 bản ghi mỗi bảng nghiệp vụ. | Kiểm thử hiệu năng có/không chỉ mục |
@@ -209,12 +209,12 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | NFR-INT-03 | Toàn vẹn | Xung đột lịch được chặn ở mức CSDL, không phụ thuộc ứng dụng. | `EXCLUDE USING gist` (cùng bảng), trigger (xuyên bảng) |
 | NFR-INT-04 | Toàn vẹn | Cập nhật số buổi PT và sĩ số lớp an toàn khi truy cập đồng thời. | Khóa hàng `FOR UPDATE`, khóa tư vấn theo hợp đồng |
 | NFR-INT-05 | Toàn vẹn | Dữ liệu mẫu thỏa mọi quy tắc. | Khối kiểm toán dữ liệu (`DO`) báo lỗi nếu có dòng vi phạm |
-| NFR-AVL-01 | Sẵn sàng | Sao lưu định kỳ và kiểm tra khôi phục khi triển khai thật. | **Chỉ là yêu cầu triển khai** (khuyến nghị `pg_dump` hằng ngày kèm WAL); bản demo chưa có lịch sao lưu tự động |
+| NFR-AVL-01 | Sẵn sàng | Sao lưu định kỳ và kiểm tra khôi phục khi triển khai thật. | **Đã thực thi trong demo:** service `backup` (`pg_dump` định kỳ, mã hóa, giữ N bản) và `verify-restore.sh`; WAL lưu trữ liên tục (mã hóa) + `pg_basebackup` cho PITR, `verify-pitr.sh` |
 | NFR-AVL-02 | Sẵn sàng | `sp_process_subscription_renewals` được bộ lập lịch ngoài gọi định kỳ (mặc định mỗi ngày) và an toàn khi gọi lặp. | Demo Docker có service `scheduler`; production dùng `pg_cron`/cron và phải đặt `app.current_user_id` |
 | NFR-MNT-01 | Bảo trì | Mã SQL tuân thủ SQLStyle.guide (từ khóa HOA, định danh `snake_case`, thụt lề nhất quán). | Rà soát script |
 | NFR-MNT-02 | Bảo trì | Ràng buộc đặt tên theo tiền tố để truy vết tới BR. | `pk_`, `fk_`, `uq_`, `chk_`, `ex_`, `idx_`, `trg_`, `sp_` |
 | NFR-MNT-03 | Bảo trì | Script nạp đúng thứ tự phụ thuộc; nạp lại script trigger thì phải nạp lại script phân quyền. | Thứ tự nạp ở mục 4.1 |
-| NFR-MNT-04 | Bảo trì | Có bộ kiểm thử tự động cho ràng buộc, phân quyền và hiệu năng, chạy trong giao dịch rồi `ROLLBACK`. | 109 test ràng buộc, 61 test RBAC, 8 test hiệu năng |
+| NFR-MNT-04 | Bảo trì | Có bộ kiểm thử tự động cho ràng buộc, phân quyền và hiệu năng, chạy trong giao dịch rồi `ROLLBACK`. | 109 test ràng buộc, 66 test RBAC, 8 test hiệu năng |
 | NFR-USE-01 | Khả dụng | Lỗi nghiệp vụ của trigger nêu mã quy tắc (`BR-xx`) và đối tượng liên quan bằng tiếng Việt. | `RAISE EXCEPTION` trong hàm trigger |
 | NFR-USE-02 | Khả dụng | Ứng dụng minh họa kết nối bằng tài khoản không phải superuser (`gym_u_*`) và cho chọn người thực hiện để ghi vết `created_by_user_id`. | Ứng dụng Streamlit minh họa |
 
@@ -225,7 +225,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 - **Giả định:** ca PT diễn ra ở khu tập tự do, không gắn phòng; BR-15 chỉ áp dụng cho lớp nhóm.
 - **Giả định:** ứng dụng đặt `app.current_user_id` cho mỗi phiên (BR-23), nếu không thì thao tác ghi bị CSDL từ chối; chạy thủ công cần `SET app.current_user_id = '<id>'`, bộ lập lịch dùng `SCHEDULER_ACTOR_USER_ID` (mặc định 3).
 - **Giả định:** kỹ thuật viên tự cập nhật trạng thái `Under_Maintenance` của phòng/thiết bị; mỗi hội viên có tối đa một hợp đồng đang dùng tại một thời điểm.
-- **Giả định:** mã hóa dữ liệu lưu trữ và sao lưu do hạ tầng triển khai đảm nhận.
+- **Giả định:** chỉ mã hóa tệp dữ liệu trên đĩa máy chủ do hạ tầng triển khai đảm nhận; TLS và sao lưu mã hóa đã có trong demo.
 
 ### 1.2. Quy tắc nghiệp vụ & ràng buộc (Business Rules & Constraints)
 
@@ -256,7 +256,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | **BR-19** | Chặn khóa bảo trì | Không xếp lớp vào phòng, không giữ chỗ thiết bị đang bảo trì hoặc trùng ca `In_Progress`; không chuyển phòng/thiết bị sang `Under_Maintenance` khi còn lịch tương lai; trạng thái thiết bị đồng bộ với `maintenance_log`. | `trg_prevent_class_in_maintenance_room`, `trg_prevent_equipment_reservation_under_maintenance`, `trg_check_reservation_window`, `trg_prevent_room_maintenance_with_future_classes`, `trg_prevent_equipment_maintenance_with_future_reservations`, `trg_start_equipment_maintenance_*`, `trg_finish_equipment_maintenance` (`SECURITY DEFINER`) |
 | **BR-20** | Nhật ký bảo trì hợp lệ | Chi phí không âm, `end_time` (nếu có) không trước `start_time`, người thực hiện là nhân viên. | `chk_maintenance_cost`, `chk_maintenance_time`, `chk_maintenance_status`; `fk_maintenance_staff`, `fk_maintenance_equipment` |
 | **BR-21** | Chống đụng máy tập | Thiết bị không bị giữ chỗ trùng giờ; mỗi lượt thuộc đúng một nguồn (ca PT hoặc lớp), nằm trong khung giờ nguồn và không trùng bảo trì. | `ex_reservation_equipment_no_overlap` (EXCLUDE gist); `chk_reservation_source`; `trg_check_reservation_window` |
-| **BR-22** | Phân quyền RBAC | Tài khoản có một hoặc nhiều vai trò (Admin, Receptionist, Trainer, Technician, Member); quyền cấp theo đặc quyền tối thiểu. | `role`, `user_role` (`pk_user_role`), `permission`, `role_permission`; 5 role `gym_role_*` NOLOGIN, `REVOKE ALL ... FROM PUBLIC` rồi `GRANT` (cả mức cột); `SECURITY DEFINER SET search_path = public, pg_temp` |
+| **BR-22** | Phân quyền RBAC | Tài khoản có một hoặc nhiều vai trò (Admin, Receptionist, Trainer, Technician, Member); quyền cấp theo đặc quyền tối thiểu. | `role`, `user_role` (`pk_user_role`), `permission`, `role_permission`; 5 role `gym_role_*` NOLOGIN, `REVOKE ALL ... FROM PUBLIC` rồi `GRANT` (cả mức cột); `SECURITY DEFINER SET search_path = public, pg_temp`; test SY-01..SY-05 kiểm tra `role_permission` khớp `GRANT` |
 | **BR-23** | Vết truy xuất giao dịch | Giao dịch tạo mới (hợp đồng, hóa đơn, lịch lớp, ca PT, nhật ký bảo trì) phải ghi người thực hiện vào `created_by_user_id`. | `created_by_user_id NOT NULL`, `updated_by_user_id`, `updated_at` + khóa ngoại trên 5 bảng; trigger `trg_fill_created_by` (từ chối nếu thiếu `app.current_user_id`), `trg_set_updated_by` (cấm đổi `created_by_user_id`) |
 | **BR-24** | Tự động gia hạn và ân hạn | Hợp đồng `is_recurring` quá hạn phát sinh hóa đơn `Pending`; quá ân hạn (mặc định 3 ngày) chưa thanh toán thì `Suspended`; hợp đồng không tự gia hạn quá hạn thì `Expired`; thanh toán gia hạn thì cộng `duration_days`, đặt lại số buổi, kích hoạt lại. | `sp_process_subscription_renewals(p_as_of, p_grace_days)` (idempotent) do bộ lập lịch ngoài gọi (service `scheduler` trong demo; `pg_cron`/cron trong production); `trg_activate_on_payment_*` |
 | **BR-25** | Chính sách hủy ca PT | Buổi chỉ bị trừ khi hoàn thành. Hủy từ 24 giờ trở lên: `Cancelled`, không trừ. Hủy dưới 24 giờ: `Late_Cancelled`, trừ 1 buổi. `No_Show` và `Completed` cũng trừ 1 buổi, không trừ lần hai. | `trg_late_cancel_pt_booking`; `trg_update_remaining_pt_sessions`; `chk_pt_booking_status` |
@@ -267,7 +267,8 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 - **Thực thi đầy đủ ở CSDL:** BR-01 đến BR-23, BR-25, BR-26.
 - **Cần bộ lập lịch ngoài:** BR-24; logic nằm trong thủ tục, nhưng PostgreSQL không có bộ lập lịch tích hợp nên phải có service `scheduler` (demo) hoặc `pg_cron`/cron (production).
 - **Lưu ý BR-10:** superuser là gốc tin cậy của DBMS, vẫn có thể bảo trì `billing_log` bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`; thao tác này phải tường minh.
-- **Lưu ý BR-22, BR-23:** `role_permission` và các lệnh `GRANT` viết tay không tự đồng bộ; mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`.
+- **Lưu ý NFR-SEC-03, NFR-AVL-01:** đã thực thi trong demo (TLS bắt buộc, sao lưu mã hóa tự động, kiểm tra khôi phục, WAL liên tục/PITR); còn lại chỉ mã hóa đĩa máy chủ (hạ tầng).
+- **Lưu ý BR-22, BR-23:** `role_permission` và các lệnh `GRANT` vẫn duy trì thủ công ở hai nơi, nhưng sai lệch được phát hiện tự động bởi test SY-01..SY-05; mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`.
 ## 2. Thiết kế cơ sở dữ liệu (Database Design – ISO/IEC 19505 / IE Standards)
 
 Mô hình khái niệm được vẽ theo ký hiệu EER (Enhanced Entity–Relationship) của Elmasri & Navathe, độc lập với hệ quản trị CSDL. Theo yêu cầu của tài liệu chuẩn, nhóm bổ sung sơ đồ vật lý IE Crow's Foot sinh trực tiếp từ script DDL, bảo đảm khớp 100% với lược đồ thật. Mục 2.2 ánh xạ EER sang 18 quan hệ theo thuật toán 9 bước của Elmasri & Navathe; mục 2.3 chứng minh chuẩn hóa.
@@ -691,8 +692,8 @@ Chỉ mục: `idx_user_account_status (status)`.
 | Attribute Name | Data Type | Key Type | Nullable? | Default Value | Business Rules / Constraints |
 | --- | --- | --- | --- | --- | --- |
 | permission_id | SERIAL | PK | No | nextval(seq) | Mã quyền. `pk_permission` |
-| permission_code | VARCHAR(50) | UK | No | None | Mã quyền duy nhất (VD: MEMBER_CREATE, EQUIP_EDIT). `uq_permission_code` |
-| module_name | VARCHAR(50) | None | No | None | Phân hệ nghiệp vụ tương ứng (VD: Billing, Booking) |
+| permission_code | VARCHAR(50) | UK | No | None | Mã quyền duy nhất (VD: MEMBER_CREATE, EQUIP_MANAGE). `uq_permission_code` |
+| module_name | VARCHAR(50) | None | No | None | Phân hệ nghiệp vụ tương ứng (VD: Member, Schedule, Facility) |
 | description | VARCHAR(255) | None | Yes | None | Diễn giải thao tác được phép |
 
 #### 3.1.5. ROLE_PERMISSION
@@ -1073,16 +1074,16 @@ Trigger được dùng cho các quy tắc xuyên bảng hoặc phụ thuộc th�
 | `trg_activate_on_payment_insert`, `trg_activate_on_payment_update` | `billing_log` (AFTER INSERT/UPDATE) | BR-07, BR-24 | Tự kích hoạt hợp đồng khi thanh toán hoàn tất |
 | `trg_fill_billing_period_start` | `billing_log` (BEFORE INSERT) | BR-08 | Tự điền chu kỳ tính phí khi chưa chỉ định |
 | `trg_billing_immutable_update`, `_delete`, `_truncate` | `billing_log` (BEFORE UPDATE/DELETE/TRUNCATE) | BR-10 | Nhật ký thanh toán bất biến |
-| `trg_check_pt_booking_conflicts` | `pt_booking` (BEFORE I/U) | BR-12, BR-16 | Chống trùng lịch huấn luyện viên và hội viên |
+| `trg_check_pt_booking_conflicts` | `pt_booking` (BEFORE I/U) | BR-12, BR-16 | Ca PT không trùng lớp nhóm do chính HLV đứng lớp (BR-12) hoặc lớp hội viên đã đăng ký (BR-16); trùng PT ↔ PT do `EXCLUDE` chặn |
 | `trg_check_pt_booking_creation` | `pt_booking` (BEFORE INSERT) | BR-18 | Hợp đồng phải hiệu lực và còn buổi PT khi đặt lịch |
-| `trg_late_cancel_pt_booking` | `pt_booking` (BEFORE UPDATE) | BR-25 | Hủy sát giờ chuyển thành `Late_Cancelled` |
+| `trg_late_cancel_pt_booking` | `pt_booking` (BEFORE UPDATE OF status) | BR-25 | Hủy khi còn dưới 24 giờ tự chuyển `Cancelled` → `Late_Cancelled` |
 | `trg_update_remaining_pt_sessions` | `pt_booking` (AFTER UPDATE) | BR-18, BR-25 | Trừ buổi PT khi ca thuộc nhóm tính phí |
-| `trg_check_class_schedule_conflicts` | `class_schedule` (BEFORE I/U) | BR-12, BR-16 | Chống trùng lịch huấn luyện viên và phòng |
-| `trg_check_class_enrollment_conflicts` | `class_enrollment` (BEFORE I/U) | BR-16 | Hội viên không đăng ký hai lớp trùng giờ |
+| `trg_check_class_schedule_conflicts` | `class_schedule` (BEFORE I/U) | BR-12, BR-16 | Lớp không trùng ca PT của HLV (BR-12); đổi giờ lớp không làm hội viên đã đăng ký bị trùng lịch (BR-16); trùng phòng do `EXCLUDE` chặn |
+| `trg_check_class_enrollment_conflicts` | `class_enrollment` (BEFORE I/U) | BR-16 | Hội viên không đăng ký lớp trùng giờ với ca PT hoặc lớp khác của mình |
 | `trg_prevent_class_in_maintenance_room`, `trg_prevent_room_maintenance_with_future_classes` | `class_schedule`, `facilities_room` | BR-19 | Không xếp lớp vào phòng đang bảo trì và ngược lại |
 | `trg_check_reservation_window`, `trg_prevent_equipment_reservation_under_maintenance` | `equipment_reservation` (BEFORE I/U) | BR-19, BR-21 | Kiểm tra khung giờ giữ chỗ; không giữ thiết bị đang bảo trì |
 | `trg_prevent_equipment_maintenance_with_future_reservations` | `equipment` (BEFORE UPDATE) | BR-19 | Không chuyển bảo trì khi còn giữ chỗ tương lai |
-| `trg_start_equipment_maintenance_insert`, `trg_finish_equipment_maintenance` | `maintenance_log` (AFTER INSERT/UPDATE) | BR-19 | Đồng bộ trạng thái thiết bị theo phiếu bảo trì |
+| `trg_start_equipment_maintenance_insert`, `trg_start_equipment_maintenance_update`, `trg_finish_equipment_maintenance` | `maintenance_log` (AFTER INSERT/UPDATE) | BR-19 | Đồng bộ trạng thái thiết bị theo phiếu bảo trì |
 
 Ví dụ 1 – **nhật ký thanh toán bất biến (BR-10)**: ba trigger chặn `UPDATE`, `DELETE`, `TRUNCATE` trên `billing_log`; hàm cho `UPDATE` chỉ cho phép `Completed → Refunded` (không đổi cột nào khác) và `Pending → Completed/Failed`.
 
@@ -1171,13 +1172,13 @@ Dự án được đóng gói bằng Docker Compose; PostgreSQL tự nạp bốn
 | Thứ tự | File | Nội dung |
 | --- | --- | --- |
 | 1 (tự động) | `Phase 3/01_schema_ddl.sql` | Extension `btree_gist`, 18 bảng, ràng buộc, chỉ mục, 3 trigger (BR-03, BR-14) |
-| 2 (tự động) | `Phase 3/02_mock_data/01..08_*.sql` | Dữ liệu mẫu cho 18 bảng: 9.925 bản ghi, gồm 3.000 người dùng và 500 thiết bị |
+| 2 (tự động) | `Phase 3/02_mock_data/01..08_*.sql` | Dữ liệu mẫu cho 18 bảng: 9.928 bản ghi, gồm 3.000 người dùng và 500 thiết bị |
 | 3 (tự động) | `Phase 3/04_triggers_views.sql` | 2 view, 31 trigger nghiệp vụ, thủ tục gia hạn, khối kiểm toán dữ liệu mẫu |
 | 4 (tự động) | `Phase 3/08_rbac_security.sql` | Role, tài khoản demo, `GRANT`/`REVOKE`, `SECURITY DEFINER`, 2 event trigger bảo vệ `billing_log` |
 | Thủ công | `Phase 3/03_complex_queries.sql` | 10 truy vấn nâng cao (mục 4.2) |
 | Thủ công | `Phase 3/05_constraint_test_cases.sql` | 109 test ràng buộc và trigger (mục 5.1) |
 | Thủ công | `Phase 3/06_performance_test_cases.sql` | 8 test hiệu năng với 100.000+ bản ghi (mục 4.2) |
-| Thủ công | `Phase 3/09_rbac_test_cases.sql` | 61 test phân quyền (mục 5.2) |
+| Thủ công | `Phase 3/09_rbac_test_cases.sql` | 66 test phân quyền (mục 5.2) |
 
 Thư mục `Phase 3/` được mount chỉ-đọc vào `/sql/` trong container CSDL. Container `fitzone_web_app` (Streamlit) kết nối bằng `gym_u_admin` (không phải superuser) nên quyền CSDL luôn được áp dụng cho ứng dụng.
 
@@ -1185,8 +1186,13 @@ Thư mục `Phase 3/` được mount chỉ-đọc vào `/sql/` trong container C
 docker compose up --build        # CSDL cổng 5432, ứng dụng Streamlit: http://localhost:8501
 # Script thủ công (tương tự cho 03, 06, 09)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/05_constraint_test_cases.sql
+docker compose exec backup backup.sh --once   # sao lưu mã hóa ngay (./backups/<db>_<UTC>.dump.enc)
+docker compose exec backup verify-restore.sh  # giải mã bản mới nhất, khôi phục vào CSDL tạm, so số dòng 18 bảng
+docker compose exec backup verify-pitr.sh     # PITR: bản nền + phát lại WAL trên máy chủ tạm, so số dòng 18 bảng
 docker compose down -v           # dọn sạch container, mạng và volume
 ```
+
+Image CSDL `fitzone-postgres:16` (thư mục `docker/postgres/`, nền `postgres:16-alpine` cộng `openssl`) tạo chứng chỉ TLS tự ký khi khởi động (demo; production gắn chứng chỉ của CA vào `/etc/postgresql/tls`) và bật `ssl=on`, `ssl_min_protocol_version=TLSv1.2`; `pg_hba.conf` chỉ cho phép `hostssl` với `scram-sha-256` và `reject` kết nối `hostnossl`, nên mọi kết nối mạng bắt buộc dùng TLS (web: `DB_SSLMODE=require`; scheduler: `PGSSLMODE=require`). Service `backup` (container `fitzone_db_backup`) chạy `pg_dump -Fc` ngay khi khởi động rồi mỗi `BACKUP_INTERVAL_SECONDS` (mặc định 86400), mã hóa AES-256-CBC (PBKDF2, 200000 vòng) bằng `BACKUP_PASSPHRASE`, ghi `./backups/` (quyền 0600) và giữ `BACKUP_RETENTION` (mặc định 7) bản mới nhất. Phải đổi `BACKUP_PASSPHRASE` khi triển khai thật; mất mật khẩu này thì không khôi phục được bản sao lưu. Chưa bao gồm: mã hóa tệp dữ liệu trên đĩa máy chủ (hạ tầng: LUKS/mã hóa đĩa đám mây) và lưu trữ liên tục WAL/PITR.
 
 Do mọi thao tác ghi vào 5 bảng giao dịch cần có người thực hiện (BR-23), khi chạy SQL thủ công cần `SET app.current_user_id = '<user_id>';` trước (các script test tự đặt). Vì PostgreSQL không có bộ lập lịch tích hợp, service `scheduler` (container `fitzone_renewal_scheduler`) gọi `CALL sp_process_subscription_renewals();` bằng `gym_u_reception` khi khởi động và lặp lại mỗi `RENEWAL_INTERVAL_SECONDS` giây (mặc định 86400); trong production dùng `pg_cron`/cron. Nạp lại tại chỗ CSDL đã có bị event trigger BR-10 chặn; cách đơn giản nhất là `docker compose down -v` rồi nạp lại.
 ### 4.2. Truy vấn nâng cao & kiểm thử hiệu năng (Advanced Queries & Performance Test Cases)
@@ -1516,7 +1522,8 @@ FROM
 WHERE
     rank_in_bracket = 1
 ORDER BY
-    age_bracket ASC;
+    age_bracket ASC,
+    plan_name ASC;
 ```
 
 Kết quả: 5 dòng, mỗi nhóm tuổi kèm gói được đăng ký nhiều nhất.
@@ -1817,8 +1824,8 @@ Kết quả chạy trên PostgreSQL 16: **109 test, 109 đạt, 0 không đạt*
 #### 5.1.3. Phạm vi và giới hạn
 
 - Cả 26 quy tắc BR-01…BR-26 đều có test trực tiếp và được thực thi ở mức CSDL.
-- Giới hạn còn lại: superuser là gốc tin cậy của BR-10 (chỉ vô hiệu hóa được bằng thao tác tường minh); BR-24 cần bộ lập lịch ngoài (Docker `scheduler`, production dùng `pg_cron`/cron) để tự kích hoạt theo thời gian; BR-22 phải đồng bộ thủ công bảng `role_permission` với các lệnh `GRANT`.
-- Không dùng Row-Level Security nên việc hội viên chỉ xem dữ liệu cá nhân của mình chưa được thực thi ở CSDL.
+- Giới hạn còn lại: superuser là gốc tin cậy của BR-10 (chỉ vô hiệu hóa được bằng thao tác tường minh); BR-24 cần bộ lập lịch ngoài (Docker `scheduler`, production dùng `pg_cron`/cron) để tự kích hoạt theo thời gian; bảng `role_permission` và các lệnh `GRANT` vẫn duy trì thủ công ở hai nơi nhưng sai lệch được phát hiện tự động bởi test SY-01..SY-05 (chạy lại bộ test 09 sau khi đổi một trong hai nơi).
+- Không dùng Row-Level Security (RLS) theo từng người vì tài khoản CSDL theo vai trò (đăng nhập demo dùng chung `gym_u_*`), không theo từng người nên CSDL không có định danh cá nhân để lọc; `gym_role_member` không đọc được dữ liệu cá nhân nào (chỉ gói tập, phòng, lịch lớp) nên không rò rỉ. RLS theo người cần mỗi người một tài khoản CSDL hoặc lớp xác thực tin cậy: đây là ranh giới phạm vi thiết kế, không phải lỗi.
 
 ### 5.2. Định nghĩa phân quyền theo vai trò – RBAC (GRANT/REVOKE)
 
@@ -1939,9 +1946,9 @@ Hàm trigger mặc định chạy với quyền của người kích hoạt: khi
 
 #### 5.2.5. Kết quả kiểm thử phân quyền
 
-Bộ test chạy bằng superuser nhưng chuyển sang từng role bằng `SET LOCAL ROLE` (tự hoàn tác cùng savepoint), trong giao dịch rồi `ROLLBACK`. Thao tác bị cấm phải nhận `42501` (insufficient_privilege); thao tác hợp lệ phải thành công (`00000`), kể cả khi đi qua chuỗi trigger `SECURITY DEFINER`. **Kết quả: 61/61 test PASS.** Mã test: `RA/TA/EA/MA/AA` = thao tác được phép; `RD/TD/ED/MD/AD` = thao tác bị từ chối; `LA/LD` = tài khoản đăng nhập thừa hưởng quyền; `EV-01..EV-13` = event trigger và quyền sở hữu bảo vệ BR-10.
+Bộ test chạy bằng superuser nhưng chuyển sang từng role bằng `SET LOCAL ROLE` (tự hoàn tác cùng savepoint), trong giao dịch rồi `ROLLBACK`. Thao tác bị cấm phải nhận `42501` (insufficient_privilege); thao tác hợp lệ phải thành công (`00000`), kể cả khi đi qua chuỗi trigger `SECURITY DEFINER`. **Kết quả: 66/66 test PASS.** Mã test: `RA/TA/EA/MA/AA` = thao tác được phép; `RD/TD/ED/MD/AD` = thao tác bị từ chối; `LA/LD` = tài khoản đăng nhập thừa hưởng quyền; `EV-01..EV-13` = event trigger và quyền sở hữu bảo vệ BR-10; `SY-01..SY-05` = ma trận quyền ứng dụng (`role_permission`) của từng vai trò khớp `GRANT` của role CSDL tương ứng, kiểm tra hai chiều (BR-22).
 
-*Bảng 5-5. Danh sách 61 test case phân quyền (SQLSTATE mong đợi trùng SQLSTATE thực tế ở mọi test)*
+*Bảng 5-5. Danh sách 66 test case phân quyền (SQLSTATE mong đợi trùng SQLSTATE thực tế ở mọi test)*
 
 | Mã | Vai trò | Kịch bản | SQLSTATE | KQ |
 | --- | --- | --- | --- | --- |
@@ -2006,9 +2013,14 @@ Bộ test chạy bằng superuser nhưng chuyển sang từng role bằng `SET L
 | EV-11 | superuser | Mọi bảng, view, sequence, hàm, thủ tục trong schema public đều thuộc gym_owner | `00000` | PASS |
 | EV-12 | superuser | gym_owner NOLOGIN, không phải superuser; không gym_u_*/gym_role_* nào là thành viên của gym_owner | `00000` | PASS |
 | EV-13 | superuser | Event trigger evt_protect_billing_log (ddl_command_end) và _drop (sql_drop) đang bật | `00000` | PASS |
+| SY-01 | superuser | Ma trận quyền ứng dụng của Admin khớp GRANT của gym_role_admin (BR-22) | `00000` | PASS |
+| SY-02 | superuser | Ma trận quyền ứng dụng của Receptionist khớp GRANT của gym_role_receptionist (BR-22) | `00000` | PASS |
+| SY-03 | superuser | Ma trận quyền ứng dụng của Trainer khớp GRANT của gym_role_trainer (BR-22) | `00000` | PASS |
+| SY-04 | superuser | Ma trận quyền ứng dụng của Technician khớp GRANT của gym_role_technician (BR-22) | `00000` | PASS |
+| SY-05 | superuser | Ma trận quyền ứng dụng của Member khớp GRANT của gym_role_member (BR-22) | `00000` | PASS |
 
 Lưu ý về mức độ thực thi:
 
 - BR-10 được bảo vệ bốn lớp: trigger bất biến (`trg_billing_immutable_update/_delete/_truncate`), chỉ cấp `SELECT, INSERT` trên `billing_log` kể cả cho Admin, chủ sở hữu `gym_owner` không đăng nhập được, và event trigger `evt_protect_billing_log`. Giới hạn cố hữu: superuser vẫn bảo trì được bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'`, thao tác này phải tường minh.
-- Chưa có trong bản demo: mã hóa dữ liệu lưu trữ (NFR-SEC-03: đĩa/volume mã hóa, TLS) và sao lưu tự động (NFR-AVL-01: khuyến nghị `pg_dump` hằng ngày kèm WAL).
+- Đã thực thi trong bản demo: TLS bắt buộc cho kết nối mạng (NFR-SEC-03) và sao lưu mã hóa tự động kèm kiểm tra khôi phục (NFR-AVL-01): `pg_dump` hằng ngày, lưu trữ WAL liên tục và `pg_basebackup` cho khôi phục theo thời điểm; `verify-restore.sh` và `verify-pitr.sh` đều ĐẠT. Còn lại: mã hóa tệp dữ liệu trên đĩa máy chủ (hạ tầng: LUKS/mã hóa đĩa đám mây).
 - Mật khẩu mẫu `demo_2026` của các tài khoản `gym_u_*` chỉ để trình diễn và phải đổi khi triển khai thật.

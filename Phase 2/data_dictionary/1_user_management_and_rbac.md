@@ -48,8 +48,8 @@ Quản lý thông tin định danh tài khoản, hệ thống phân quyền đa 
 | Attribute Name | Data Type | Key | Null? | Default | Business Rules / Constraints |
 | --- | --- | --- | --- | --- | --- |
 | permission_id | SERIAL | PK | No | SERIAL (nextval) | Mã định danh quyền thao tác. `pk_permission` |
-| permission_code | VARCHAR(50) | UK | No | None | Mã quyền duy nhất (VD: MEMBER_CREATE, EQUIP_EDIT). `uq_permission_code` |
-| module_name | VARCHAR(50) | None | No | None | Phân hệ nghiệp vụ tương ứng (VD: Billing, Booking) |
+| permission_code | VARCHAR(50) | UK | No | None | Mã quyền duy nhất (VD: MEMBER_CREATE, EQUIP_MANAGE). `uq_permission_code` |
+| module_name | VARCHAR(50) | None | No | None | Phân hệ nghiệp vụ tương ứng (VD: Member, Schedule, Facility) |
 | description | VARCHAR(255) | None | Yes | NULL | Diễn giải chi tiết thao tác được phép thực hiện |
 
 ## Bảng 3.1.5: ROLE_PERMISSION

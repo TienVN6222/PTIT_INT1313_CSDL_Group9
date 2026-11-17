@@ -15,6 +15,8 @@
 --   * BR-10 có thêm 2 lớp (PHẦN 7 của 08): chủ sở hữu duy nhất gym_owner (NOLOGIN) và event trigger
 --     evt_protect_billing_log; các test EV-xx kiểm tra cả superuser cũng bị chặn ALTER/DROP, và lối thoát
 --     có chủ đích app.allow_billing_maintenance = 'on'.
+--   * Nhóm SY (PHẦN 8, BR-22): đối chiếu tự động ma trận quyền ứng dụng (role_permission) với GRANT
+--     thực tế của từng role, phát hiện mọi chỗ hai nơi lệch nhau.
 --   * Nhóm RD (Denied): role bị từ chối thao tác trái quyền. Test ĐẠT (PASS) khi
 --     CSDL trả đúng SQLSTATE 42501 (insufficient_privilege).
 --   * Nhóm RA (Allowed): thao tác hợp lệ của role phải được chấp nhận, và dữ liệu
@@ -165,7 +167,7 @@ $$ LANGUAGE sql STABLE;
 
 
 -- ============================================================================
--- PHẦN 1: LỄ TÂN (gym_role_receptionist - quyền 1, 2, 3, 5, 6, 7)
+-- PHẦN 1: LỄ TÂN (gym_role_receptionist - quyền 1, 2, 3, 5, 6, 7, 11)
 -- ============================================================================
 
 SELECT pg_temp.expect_allowed('RA-01', 'gym_role_receptionist', 'Tạo tài khoản hội viên mới kèm hồ sơ member_profile', ARRAY[
@@ -260,7 +262,7 @@ SELECT pg_temp.expect_denied('RD-07', 'gym_role_receptionist', 'Ghi đè billing
 
 
 -- ============================================================================
--- PHẦN 2: HUẤN LUYỆN VIÊN (gym_role_trainer - quyền 1, 6, 7)
+-- PHẦN 2: HUẤN LUYỆN VIÊN (gym_role_trainer - quyền 1, 7, 11)
 -- ============================================================================
 
 SELECT pg_temp.expect_allowed('TA-01', 'gym_role_trainer', 'Đánh dấu ca PT Completed: trigger SECURITY DEFINER trừ 1 buổi (hợp đồng ID 1: 16 -> 15)', ARRAY[
@@ -398,7 +400,7 @@ SELECT pg_temp.expect_denied('ED-05', 'gym_role_technician', 'Gọi thủ tục 
 
 
 -- ============================================================================
--- PHẦN 4: HỘI VIÊN (gym_role_member - chỉ đọc danh mục công khai)
+-- PHẦN 4: HỘI VIÊN (gym_role_member - quyền 11, chỉ đọc danh mục công khai)
 -- ============================================================================
 
 SELECT pg_temp.expect_allowed('MA-01', 'gym_role_member', 'Xem lịch lớp học nhóm class_schedule', ARRAY[
@@ -429,7 +431,7 @@ SELECT pg_temp.expect_denied('MD-05', 'gym_role_member', 'Đọc class_schedule.
 
 
 -- ============================================================================
--- PHẦN 5: QUẢN TRỊ VIÊN (gym_role_admin - quyền 1-10)
+-- PHẦN 5: QUẢN TRỊ VIÊN (gym_role_admin - quyền 1-11)
 -- ============================================================================
 
 SELECT pg_temp.expect_allowed('AA-01', 'gym_role_admin', 'Điều chỉnh giá gói tập membership_plan', ARRAY[
@@ -575,6 +577,116 @@ SELECT pg_temp.expect_allowed('EV-13', 'superuser', 'Event trigger evt_protect_b
               FROM pg_event_trigger
               WHERE evtname IN ('evt_protect_billing_log', 'evt_protect_billing_log_drop')
                 AND evtenabled = 'O') = 2$q$);
+
+
+-- ============================================================================
+-- PHẦN 8: ĐỒNG BỘ MA TRẬN QUYỀN ỨNG DỤNG (role_permission) <-> GRANT (BR-22)
+-- ============================================================================
+-- role_permission là dữ liệu cho ứng dụng, còn GRANT của 08_rbac_security.sql là thứ CSDL thực thi.
+-- Mỗi mã quyền ứng dụng được gắn một "chữ ký" = các quyền CSDL tối thiểu mà chức năng đó cần.
+-- Với mỗi vai trò, test kiểm tra hai chiều:
+--   (1) quyền có trong ma trận => role CSDL phải có đủ chữ ký (nếu không, ứng dụng hứa một chức năng
+--       mà CSDL sẽ từ chối);
+--   (2) quyền KHÔNG có trong ma trận => role CSDL không được có đủ chữ ký (nếu có, GRANT rộng hơn ma trận).
+--       REPORTS_VIEW chỉ kiểm tra chiều (1): báo cáo được tổng hợp từ các bảng mà lễ tân vẫn phải
+--       đọc khi nghiệp vụ (ghi nhận hóa đơn, đặt lịch), nên CSDL không phân biệt được hai mục đích.
+-- Hàm trả về danh sách chỗ lệch; test ĐẠT khi danh sách rỗng.
+CREATE FUNCTION pg_temp.permission_drift(p_app_role VARCHAR, p_db_role VARCHAR)
+RETURNS TEXT[] AS $$
+    WITH signature (permission_code, table_name, privilege_type) AS (
+        VALUES
+            ('MEMBER_VIEW',       'member_profile',      'SELECT'),
+            ('MEMBER_CREATE',     'user_account',        'INSERT'),
+            ('MEMBER_CREATE',     'member_profile',      'INSERT'),
+            ('MEMBER_EDIT',       'user_account',        'UPDATE'),
+            ('MEMBER_EDIT',       'member_profile',      'UPDATE'),
+            ('PLAN_MANAGE',       'membership_plan',     'INSERT'),
+            ('PLAN_MANAGE',       'membership_plan',     'UPDATE'),
+            ('SUB_ACTIVATE',      'member_subscription', 'INSERT'),
+            ('SUB_ACTIVATE',      'member_subscription', 'UPDATE'),
+            ('SUB_ACTIVATE',      'billing_log',         'INSERT'),
+            ('CLASS_SCHEDULE',    'class_schedule',      'INSERT'),
+            ('CLASS_SCHEDULE',    'class_schedule',      'UPDATE'),
+            ('PT_BOOKING_MANAGE', 'pt_booking',          'SELECT'),
+            ('PT_BOOKING_MANAGE', 'pt_booking',          'UPDATE'),
+            ('EQUIP_MANAGE',      'equipment',           'INSERT'),
+            ('EQUIP_MANAGE',      'equipment',           'UPDATE'),
+            ('MAINTENANCE_LOG',   'maintenance_log',     'INSERT'),
+            ('MAINTENANCE_LOG',   'maintenance_log',     'UPDATE'),
+            ('REPORTS_VIEW',      'billing_log',         'SELECT'),
+            ('REPORTS_VIEW',      'class_enrollment',    'SELECT'),
+            ('REPORTS_VIEW',      'pt_booking',          'SELECT'),
+            ('CLASS_VIEW',        'class_schedule',      'SELECT')
+    ),
+    per_permission AS (
+        SELECT
+            p.permission_code,
+            EXISTS (
+                SELECT 1
+                FROM role_permission AS rp
+                INNER JOIN role AS r
+                    ON r.role_id = rp.role_id
+                WHERE r.role_name = p_app_role
+                  AND rp.permission_id = p.permission_id
+            ) AS in_matrix,
+            -- has_any_column_privilege: quyền mức bảng hoặc mức cột đều được tính.
+            COALESCE(BOOL_AND(has_any_column_privilege(p_db_role, s.table_name, s.privilege_type)), FALSE)
+                AS has_grants,
+            COUNT(s.table_name) AS signature_size
+        FROM permission AS p
+        LEFT JOIN signature AS s
+            ON s.permission_code = p.permission_code
+        GROUP BY
+            p.permission_id,
+            p.permission_code
+    )
+    SELECT COALESCE(ARRAY_AGG(permission_code || CASE
+                                  WHEN signature_size = 0 THEN ': chưa có chữ ký quyền'
+                                  WHEN in_matrix THEN ': có trong ma trận nhưng thiếu GRANT'
+                                  ELSE ': có GRANT nhưng không có trong ma trận'
+                              END ORDER BY permission_code), ARRAY[]::TEXT[])
+    FROM per_permission
+    WHERE signature_size = 0
+       OR (in_matrix AND NOT has_grants)
+       OR (NOT in_matrix AND has_grants AND permission_code <> 'REPORTS_VIEW');
+$$ LANGUAGE sql;
+
+SELECT pg_temp.expect_allowed('SY-01', 'superuser', 'Ma trận quyền ứng dụng của Admin khớp GRANT của gym_role_admin (BR-22)', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT CARDINALITY(pg_temp.permission_drift('Admin', 'gym_role_admin')) = 0$q$);
+
+SELECT pg_temp.expect_allowed('SY-02', 'superuser', 'Ma trận quyền ứng dụng của Receptionist khớp GRANT của gym_role_receptionist (BR-22)', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT CARDINALITY(pg_temp.permission_drift('Receptionist', 'gym_role_receptionist')) = 0$q$);
+
+SELECT pg_temp.expect_allowed('SY-03', 'superuser', 'Ma trận quyền ứng dụng của Trainer khớp GRANT của gym_role_trainer (BR-22)', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT CARDINALITY(pg_temp.permission_drift('Trainer', 'gym_role_trainer')) = 0$q$);
+
+SELECT pg_temp.expect_allowed('SY-04', 'superuser', 'Ma trận quyền ứng dụng của Technician khớp GRANT của gym_role_technician (BR-22)', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT CARDINALITY(pg_temp.permission_drift('Technician', 'gym_role_technician')) = 0$q$);
+
+SELECT pg_temp.expect_allowed('SY-05', 'superuser', 'Ma trận quyền ứng dụng của Member khớp GRANT của gym_role_member (BR-22)', ARRAY[
+    $q$SELECT 1$q$
+], $q$SELECT CARDINALITY(pg_temp.permission_drift('Member', 'gym_role_member')) = 0$q$);
+
+-- Chi tiết chỗ lệch (rỗng khi đồng bộ) để dễ sửa khi một test SY-xx không đạt.
+SELECT
+    r.role_name,
+    pg_temp.permission_drift(r.role_name, db.db_role) AS drift
+FROM role AS r
+INNER JOIN (
+    VALUES
+        ('Admin',        'gym_role_admin'),
+        ('Receptionist', 'gym_role_receptionist'),
+        ('Trainer',      'gym_role_trainer'),
+        ('Technician',   'gym_role_technician'),
+        ('Member',       'gym_role_member')
+) AS db (role_name, db_role)
+    ON db.role_name = r.role_name
+ORDER BY
+    r.role_id;
 
 
 -- ============================================================================

@@ -88,6 +88,8 @@ DB_NAME = os.environ.get("DB_NAME", "gym_management")
 # Ứng dụng đăng nhập bằng tài khoản KHÔNG phải superuser (gym_u_admin thuộc nhóm quyền gym_role_admin, xem 08_rbac_security.sql)
 DB_USER = os.environ.get("DB_USER", "gym_u_admin")
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "demo_2026")
+# NFR-SEC-03: docker-compose đặt "require" (CSDL từ chối kết nối không mã hóa); mặc định "prefer".
+DB_SSLMODE = os.environ.get("DB_SSLMODE", "prefer")
 
 @st.cache_resource
 def get_db_connection():
@@ -98,6 +100,7 @@ def get_db_connection():
             dbname=DB_NAME,
             user=DB_USER,
             password=DB_PASSWORD,
+            sslmode=DB_SSLMODE,
             connect_timeout=5
         )
         return conn

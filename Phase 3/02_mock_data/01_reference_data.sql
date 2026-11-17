@@ -31,22 +31,25 @@ INSERT INTO permission (permission_id, permission_code, module_name, description
 (7, 'PT_BOOKING_MANAGE', 'Schedule', 'Xem và phê duyệt lịch tập PT 1-1'),
 (8, 'EQUIP_MANAGE', 'Facility', 'Quản lý thông tin và trạng thái thiết bị phòng tập'),
 (9, 'MAINTENANCE_LOG', 'Facility', 'Ghi nhật ký sửa chữa và chi phí bảo trì máy móc'),
-(10, 'REPORTS_VIEW', 'Analytics', 'Xem báo cáo doanh thu, hiệu suất PT và tỷ lệ lấp đầy lớp');
+(10, 'REPORTS_VIEW', 'Analytics', 'Xem báo cáo doanh thu, hiệu suất PT và tỷ lệ lấp đầy lớp'),
+(11, 'CLASS_VIEW', 'Schedule', 'Xem lịch lớp học nhóm (chỉ đọc)');
 
-ALTER SEQUENCE permission_permission_id_seq RESTART WITH 11;
+ALTER SEQUENCE permission_permission_id_seq RESTART WITH 12;
 
 -- ----------------------------------------------------------------------------
 -- 2. GÁN QUYỀN CHO VAI TRÒ (role_permission)
 -- ----------------------------------------------------------------------------
 INSERT INTO role_permission (role_id, permission_id) VALUES
--- Admin sở hữu toàn bộ quyền (1-10)
-(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10),
--- Trainer có quyền xem hội viên, xem lịch lớp, quản lý PT
-(2, 1), (2, 6), (2, 7),
--- Member có quyền xem thông tin cơ bản
-(3, 1),
--- Receptionist có quyền tạo/xem hội viên, kích hoạt gói, hỗ trợ book lịch
-(4, 1), (4, 2), (4, 3), (4, 5), (4, 6), (4, 7),
+-- Ma trận này phải khớp với GRANT trong 08_rbac_security.sql (BR-22); các test SY-01..SY-05
+-- của 09_rbac_test_cases.sql tự động phát hiện mọi chỗ lệch giữa hai nơi.
+-- Admin sở hữu toàn bộ quyền (1-11)
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11),
+-- Trainer: xem hội viên, xem lịch lớp (chỉ đọc), xem/xác nhận ca PT
+(2, 1), (2, 7), (2, 11),
+-- Member: chỉ xem lịch lớp (không được xem hồ sơ hội viên khác)
+(3, 11),
+-- Receptionist: tạo/xem/sửa hội viên, kích hoạt gói, xếp lịch lớp, đặt lịch PT
+(4, 1), (4, 2), (4, 3), (4, 5), (4, 6), (4, 7), (4, 11),
 -- Technician có quyền quản lý thiết bị và bảo trì
 (5, 8), (5, 9);
 

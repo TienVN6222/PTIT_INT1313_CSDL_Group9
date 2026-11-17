@@ -2,14 +2,22 @@ services:
   # ----------------------------------------------------------------------------
   # CƠ SỞ DỮ LIỆU POSTGRESQL 16 (Môi trường Disposable, tự động khởi tạo)
   # ----------------------------------------------------------------------------
+  # NFR-SEC-03: image docker/postgres bật TLS (chứng chỉ tự ký cho demo) và pg_hba chỉ nhận
+  # kết nối qua mạng đã mã hóa TLS; kết nối không mã hóa bị từ chối.
   db:
-    image: postgres:16-alpine
+    build:
+      context: ./docker/postgres
+    image: fitzone-postgres:16
     container_name: fitzone_postgres_db
     restart: unless-stopped
+    entrypoint: ["start-postgres.sh"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-gym_management}
       POSTGRES_USER: ${POSTGRES_USER:-gym_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gym_password_2026}
+      # NFR-AVL-01: lưu trữ WAL liên tục (mã hóa AES-256) vào ./backups/wal để khôi phục theo thời điểm.
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-doi_mat_khau_sao_luu_khi_trien_khai}
+      WAL_ARCHIVE_TIMEOUT: ${WAL_ARCHIVE_TIMEOUT:-300}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -28,6 +36,8 @@ services:
       - "./Phase 3/08_rbac_security.sql:/docker-entrypoint-initdb.d/08_rbac_security.sql:ro"
       # Script kiểm thử chạy thủ công (KHÔNG chạy lúc khởi tạo), xem README
       - "./Phase 3:/sql:ro"
+      # Kho WAL đã mã hóa (archive_command), dùng chung với service backup.
+      - ./backups/wal:/wal_archive
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gym_admin} -d ${POSTGRES_DB:-gym_management}"]
       interval: 3s
@@ -55,6 +65,8 @@ services:
       # POSTGRES_USER chỉ dùng cho initdb (nạp schema/dữ liệu); không dùng cho ứng dụng.
       DB_USER: ${DB_USER:-gym_u_admin}
       DB_PASSWORD: ${DB_PASSWORD:-demo_2026}
+      # NFR-SEC-03: kết nối CSDL bắt buộc mã hóa TLS.
+      DB_SSLMODE: require
     depends_on:
       db:
         condition: service_healthy
@@ -80,6 +92,7 @@ services:
       PGDATABASE: ${POSTGRES_DB:-gym_management}
       PGUSER: ${SCHEDULER_DB_USER:-gym_u_reception}
       PGPASSWORD: ${SCHEDULER_DB_PASSWORD:-demo_2026}
+      PGSSLMODE: require
       RENEWAL_INTERVAL_SECONDS: ${RENEWAL_INTERVAL_SECONDS:-86400}
       # BR-23: tác vụ định kỳ cũng phải gắn với người thực hiện (mặc định user 3 = lễ tân); trigger
       # trg_set_updated_by / trg_fill_created_by đọc biến phiên app.current_user_id này.
@@ -100,6 +113,42 @@ services:
           fi
           sleep "$${RENEWAL_INTERVAL_SECONDS}"
         done
+    networks:
+      - fitzone_network
+
+  # ----------------------------------------------------------------------------
+  # SAO LƯU ĐỊNH KỲ CÓ MÃ HÓA (NFR-AVL-01, NFR-SEC-03)
+  # Mỗi BACKUP_INTERVAL_SECONDS giây (mặc định 1 ngày, chạy ngay khi khởi động): pg_dump -Fc và
+  # pg_basebackup, mã hóa AES-256 bằng BACKUP_PASSPHRASE, lưu ở ./backups (giữ BACKUP_RETENTION bản).
+  # Cùng kho WAL ./backups/wal (db lưu trữ liên tục) => khôi phục theo thời điểm (PITR).
+  # Sao lưu ngay:          docker compose exec backup backup.sh --once
+  # Kiểm tra khôi phục:     docker compose exec backup verify-restore.sh   (từ bản pg_dump)
+  # Kiểm tra PITR:          docker compose exec backup verify-pitr.sh      (bản nền + phát lại WAL)
+  # Dùng superuser vì pg_dump phải đọc được mọi bảng/cột (kể cả password_hash bị ẩn với role ứng dụng).
+  # ----------------------------------------------------------------------------
+  backup:
+    build:
+      context: ./docker/postgres
+    image: fitzone-postgres:16
+    container_name: fitzone_db_backup
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-gym_management}
+      PGUSER: ${POSTGRES_USER:-gym_admin}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-gym_password_2026}
+      PGSSLMODE: require
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-doi_mat_khau_sao_luu_khi_trien_khai}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-7}
+    entrypoint: ["backup.sh"]
+    volumes:
+      - ./backups:/backups
+      - ./backups/wal:/wal_archive
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - fitzone_network
 

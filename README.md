@@ -34,10 +34,18 @@ docker compose up --build
 
 - Container `fitzone_postgres_db` tự động khởi chạy và nạp tuần tự các file script trong `/docker-entrypoint-initdb.d/` (mỗi file trong `Phase 3/` được mount riêng với tên đích sắp xếp đúng thứ tự):
   1. `01_schema_ddl.sql` (Khởi tạo 18 bảng, PK, FK, CHECK, Trigger tuổi BR-03, Indexes).
-  2. `02_01_…` đến `02_08_…` ← `Phase 3/02_mock_data/01_reference_data.sql` … `08_maintenance_logs.sql` (8 file dữ liệu mẫu, tổng 9.925 bản ghi trên 18 bảng, đa dạng trạng thái). Người dùng 31–3000 và thiết bị 201–500 được sinh tất định bằng `generate_series()` để đạt mức tối thiểu của giảng viên (≥ 3.000 người dùng, ≥ 500 thiết bị).
+  2. `02_01_…` đến `02_08_…` ← `Phase 3/02_mock_data/01_reference_data.sql` … `08_maintenance_logs.sql` (8 file dữ liệu mẫu, tổng 9.928 bản ghi trên 18 bảng, đa dạng trạng thái). Người dùng 31–3000 và thiết bị 201–500 được sinh tất định bằng `generate_series()` để đạt mức tối thiểu của giảng viên (≥ 3.000 người dùng, ≥ 500 thiết bị).
   3. `04_triggers_views.sql` (Khởi tạo 2 Views, các Triggers nghiệp vụ BR-07 → BR-25, thủ tục gia hạn `sp_process_subscription_renewals` và khối kiểm toán dữ liệu mẫu).
   4. `08_rbac_security.sql` (Tạo các role phân quyền và tài khoản đăng nhập demo `gym_u_*`).
 - Container `fitzone_renewal_scheduler` (cùng image `postgres:16-alpine`) chờ CSDL sẵn sàng rồi gọi `CALL sp_process_subscription_renewals();` (BR-24) bằng tài khoản lễ tân `gym_u_reception` ngay khi khởi động và lặp lại mỗi `RENEWAL_INTERVAL_SECONDS` giây (mặc định 86400 = 1 ngày; đặt biến này trong `.env` để đổi, ví dụ `20` khi trình diễn). Xem log: `docker logs fitzone_renewal_scheduler`.
+- Container `fitzone_postgres_db` dùng image `fitzone-postgres:16` (build từ `docker/postgres/`): **mọi kết nối mạng đến CSDL bắt buộc dùng TLS** (`ssl=on`, TLS ≥ 1.2, `pg_hba.conf` chỉ cho `hostssl` + `scram-sha-256`, kết nối không mã hóa bị từ chối). Chứng chỉ được tạo tự ký khi khởi động (chỉ để demo; production gắn chứng chỉ của CA vào `/etc/postgresql/tls`). Web dùng `DB_SSLMODE=require`, scheduler dùng `PGSSLMODE=require`.
+- Container `fitzone_db_backup` (service `backup`) chạy `pg_dump -Fc` ngay khi khởi động rồi mỗi `BACKUP_INTERVAL_SECONDS` giây (mặc định 86400), mã hóa AES-256-CBC bằng `BACKUP_PASSPHRASE`, ghi vào `./backups/<db>_<UTC>.dump.enc` và giữ `BACKUP_RETENTION` (mặc định 7) bản mới nhất. Thư mục `backups/` đã được `.gitignore`.
+  ```bash
+  docker compose exec backup backup.sh --once     # sao lưu ngay một bản
+  docker compose exec backup verify-restore.sh    # giải mã bản mới nhất, khôi phục vào CSDL tạm, so số dòng 18 bảng (exit 0 = ĐẠT)
+docker compose exec backup verify-pitr.sh       # PITR: bản nền pg_basebackup + phát lại WAL đã lưu trữ trên máy chủ tạm (exit 0 = ĐẠT)
+  ```
+  > **Cảnh báo:** phải đổi `BACKUP_PASSPHRASE` trong `.env` khi triển khai thật; mất mật khẩu này thì không thể khôi phục các bản sao lưu. CSDL lưu trữ WAL liên tục (mã hóa) vào `./backups/wal`; cùng bản nền `pg_basebackup` cho phép khôi phục theo thời điểm (PITR). Chưa bao gồm mã hóa tệp dữ liệu trên đĩa máy chủ (hạ tầng: LUKS/mã hóa đĩa).
 - Container `fitzone_web_app` tự động kết nối CSDL và khởi động ứng dụng Web UI. **Ứng dụng đăng nhập bằng tài khoản `gym_u_admin` / `demo_2026` (không phải superuser, thuộc nhóm quyền `gym_role_admin`)** thông qua biến `DB_USER`/`DB_PASSWORD`; `POSTGRES_USER=gym_admin` chỉ dùng để khởi tạo CSDL và chạy các script kiểm thử. Do đó ứng dụng không đọc được `user_account.password_hash`, không sửa/xóa được `billing_log` và không có quyền `TRUNCATE`.
 
 ### 2. Truy cập Ứng dụng
@@ -62,7 +70,7 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 # 06 - Kiểm thử hiệu năng (mất khoảng 1 phút)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/06_performance_test_cases.sql
 
-# 09 - Kiểm thử phân quyền RBAC (61 test case)
+# 09 - Kiểm thử phân quyền RBAC (66 test case)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/09_rbac_test_cases.sql
 ```
 
@@ -108,6 +116,8 @@ PTIT_INT1313_CSDL_Group9/
 │   ├── app.py                              # Streamlit Dashboard, CRUD, Queries runner, Test Bench
 │   ├── requirements.txt                    # Thư viện Python phụ thuộc
 │   └── Dockerfile                          # Build image độc lập cho Web UI
+├── docker/postgres/                         # Image CSDL fitzone-postgres:16 (TLS bắt buộc, pg_hba), backup.sh, verify-restore.sh, archive-wal.sh, verify-pitr.sh
+├── backups/                                 # Bản sao lưu mã hóa (.dump.enc), tự tạo, không đưa lên Git
 ├── Gym_Membership_PT_Planner_Report_ISO_Standards.docx  # Báo cáo kỹ thuật chi tiết
 ├── Gym_Membership_PT_Planner_Report_ISO_Standards.md    # Bản chuyển đổi Markdown của báo cáo
 ├── docker-compose.yml                       # Điều phối khởi chạy toàn bộ hệ thống

@@ -2186,5 +2186,5 @@ WHERE ms.sub_status = 'Active'
 5. **`pt_booking` không đạt 3NF** do phi chuẩn hóa có kiểm soát (xem E.1).
 6. **Mật khẩu tài khoản demo `demo_2026`** chỉ dùng trình diễn, phải đổi khi triển khai thật.
 7. **Superuser là gốc tin cậy:** BR-10 chặn được cả superuser ở mức thông thường, nhưng superuser vẫn tắt được event trigger một cách tường minh; đây là giới hạn cố hữu của mọi DBMS, không phải lỗ hổng thiết kế.
-8. **BR-22:** bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` được duy trì thủ công song song, không tự đồng bộ.
+8. **BR-22:** bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` vẫn duy trì thủ công ở hai nơi, nhưng mọi sai lệch được phát hiện tự động bởi test SY-01..SY-05 (chạy lại `09_rbac_test_cases.sql` sau khi đổi một trong hai nơi).
 9. **BR-23:** mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`; thiếu thì CSDL từ chối (theo thiết kế).
