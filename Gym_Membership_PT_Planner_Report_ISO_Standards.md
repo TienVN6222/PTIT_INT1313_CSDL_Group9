@@ -273,7 +273,7 @@ Các yêu cầu dưới đây mô tả điều người dùng cần, không nêu
 | UR-12 | Kỹ thuật viên | Tôi phải quản lý được danh mục thiết bị, ngày mua, khấu hao và lịch sử bảo trì kèm chi phí. |
 | UR-13 | Lễ tân, HLV | Thiết bị hoặc phòng đang bảo trì không được xếp vào lịch mới, và một máy không bị hai ca giữ cùng lúc. |
 | UR-14 | Admin | Tôi phải xem được báo cáo doanh thu, tỷ lệ lấp đầy lớp, hiệu suất HLV, và các hợp đồng sắp hết hạn. |
-| UR-15 | FR-30 | BR-23 |
+| UR-15 | Admin | Mọi giao dịch tạo mới hoặc cập nhật dữ liệu quan trọng phải ghi nhận định danh người thực hiện và thời điểm thao tác. |
 | UR-16 | Mọi người dùng | Mật khẩu và thông tin nhạy cảm của tôi phải được bảo vệ. |
 | UR-17 | Mọi người dùng | Tra cứu thông tin phải phản hồi nhanh, không phải chờ đáng kể khi dữ liệu lớn. |
 | UR-18 | Admin | Dữ liệu phải được sao lưu để khôi phục được khi có sự cố. |
@@ -1563,7 +1563,7 @@ Trigger được dùng cho các quy tắc xuyên bảng hoặc phụ thuộc th�
 | `maintenance_log` | `trg_finish_equipment_maintenance` | AFTER UPDATE | `trg_fn_finish_equipment_maintenance` | BR-19 |
 | `maintenance_log` | `trg_set_updated_by` | BEFORE UPDATE | `trg_fn_set_updated_by` | BR-23 |
 | `maintenance_log` | `trg_start_equipment_maintenance_insert` | AFTER INSERT | `trg_fn_start_equipment_maintenance` | BR-19 |
-| `maintenance_log` | `trg_start_equipment_maintenance_update` | AFTER UPDATE | `trg_fn_start_equipment_maintenance` | – |
+| `maintenance_log` | `trg_start_equipment_maintenance_update` | AFTER UPDATE | `trg_fn_start_equipment_maintenance` | BR-19 |
 | `member_profile` | `trg_check_member_dob` | BEFORE INSERT OR UPDATE | `trg_fn_check_user_age` | BR-03 |
 | `member_subscription` | `trg_fill_created_by` | BEFORE INSERT | `trg_fn_fill_created_by` | BR-23 |
 | `member_subscription` | `trg_require_payment_before_active` | BEFORE INSERT OR UPDATE | `trg_fn_require_payment_before_active` | BR-07 |
@@ -2554,10 +2554,22 @@ Hàm trigger mặc định chạy với quyền của **người kích hoạt**.
 
 ```sql
 DO $$
+DECLARE
+    v_function REGPROCEDURE;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gym_owner') THEN
-        CREATE ROLE gym_owner NOLOGIN;
-    END IF;
+    FOR v_function IN
+        SELECT p.oid::REGPROCEDURE
+        FROM pg_proc AS p
+        JOIN pg_namespace AS n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.prorettype = 'trigger'::REGTYPE
+        ORDER BY p.proname
+    LOOP
+        EXECUTE format(
+            'ALTER FUNCTION %s SECURITY DEFINER SET search_path = public, pg_temp',
+            v_function
+        );
+    END LOOP;
 END;
 $$;
 ```
