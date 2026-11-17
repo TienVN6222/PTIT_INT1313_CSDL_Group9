@@ -206,3 +206,4 @@ Trong Docker demo, service `scheduler` (container `fitzone_renewal_scheduler`) t
 4. **Complex Queries Playground:** Chọn và thực thi từng câu truy vấn trong số 10 câu nâng cao, hiển thị mã SQL, bảng dữ liệu và biểu đồ Plotly tương tác.
 5. **Trigger Test Bench:** Môi trường thử nghiệm trực quan tương tác cho phép giảng viên/hội đồng kiểm tra trực tiếp phản ứng tự vệ của CSDL khi kích hoạt các Triggers.
 6. **Người thao tác (BR-23):** Ô chọn *Người thao tác* ở thanh bên (nhân viên/quản trị từ `user_account` ⨝ `user_role`); mỗi giao dịch ghi dữ liệu chạy `SET LOCAL app.current_user_id` để cột `created_by_user_id` được điền tự động. Mọi phép thử/demo không cần lưu đều `ROLLBACK`.
+
