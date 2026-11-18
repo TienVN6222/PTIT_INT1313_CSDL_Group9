@@ -20,6 +20,12 @@ Mô hình quan niệm của hệ thống **Gym Membership & Personal Training Pl
 
 (Bản vector: [3_eer_diagram.svg](3_eer_diagram.svg); mã nguồn Graphviz: [3_eer_diagram.dot](3_eer_diagram.dot).)
 
+Cùng mô hình này được vẽ lại theo **ký hiệu Crow's Foot** (dùng trong báo cáo, Hình 2-1, vì dễ đọc hơn): hộp = thực thể, đường nối có nhãn = quan hệ, chân chim/vạch = bậc tối đa nhiều/một, vòng tròn/vạch phía ngoài = tối thiểu 0/1, đường nhãn "là" = chuyên biệt hóa, đường nét đứt XOR = cung loại trừ.
+
+![Mô hình khái niệm ER - Crow's Foot](5_conceptual_crows_foot.png)
+
+(Bản vector: [5_conceptual_crows_foot.svg](5_conceptual_crows_foot.svg); mã nguồn Mermaid: [5_conceptual_crows_foot.mmd](5_conceptual_crows_foot.mmd), render bằng mermaid.live.)
+
 > Sơ đồ cũ `1_mermaid-diagram.png` (ER dạng Mermaid) được **thay thế (superseded)** bởi sơ đồ EER và sơ đồ vật lý trong tài liệu này vì không thể hiện chuyên biệt hóa, tham gia toàn phần, cung loại trừ và các cột mới (`created_by_user_id`, `billing_period_start`). File cũ chỉ được giữ lại để báo cáo tham chiếu: ![Sơ đồ Mermaid cũ (superseded)](1_mermaid-diagram.png)
 
 ## 2.1.3. Các kiểu thực thể (Entity types)
@@ -49,7 +55,7 @@ Gạch chân/(PK) là khóa; (D) là thuộc tính dẫn xuất.
 | **CLASS_SCHEDULE** | class_id, class_name, start_time, end_time, max_capacity, **current_enrolled (D)** | PK `class_id` |
 | **PT_BOOKING** | booking_id, booking_date, start_time, end_time, status, created_at | PK `booking_id` |
 
-`current_enrolled` là thuộc tính **dẫn xuất** (= số ghi nhận CLASS_ENROLLMENT trạng thái `Enrolled`), được lưu vật lý và duy trì bằng trigger để chặn vượt sức chứa (BR liên quan `chk_class_enrollment_limit`).
+`current_enrolled` là thuộc tính **dẫn xuất** (= số ghi nhận CLASS_ENROLLMENT trạng thái `Enrolled` hoặc `Attended`), được lưu vật lý và duy trì bằng trigger để chặn vượt sức chứa (BR liên quan `chk_class_enrollment_limit`).
 
 ### Phân hệ Cơ sở vật chất & Bảo trì
 | Thực thể | Thuộc tính | Khóa |
@@ -63,7 +69,7 @@ Gạch chân/(PK) là khóa; (D) là thuộc tính dẫn xuất.
 
 | Quan hệ | Thực thể tham gia | Tỷ số | Tham gia | BR nguồn |
 |---|---|---|---|---|
-| HAS_ROLE | USER_ACCOUNT – ROLE | M:N | USER_ACCOUNT: toàn phần (mọi tài khoản có ≥1 vai trò); ROLE: riêng phần | BR-22 |
+| HAS_ROLE | USER_ACCOUNT – ROLE | M:N | USER_ACCOUNT: toàn phần (mọi tài khoản có ≥1 vai trò; bảo đảm ở quy trình tạo tài khoản vì không khai báo được bằng ràng buộc đơn bảng); ROLE: riêng phần | BR-22 |
 | GRANTS | ROLE – PERMISSION | M:N | riêng phần cả hai | BR-22 |
 | SUBSCRIBES | MEMBER – MEMBER_SUBSCRIPTION | 1:N | SUBSCRIPTION toàn phần; MEMBER riêng phần | Hội viên có thể có nhiều hợp đồng theo thời gian; tối đa 1 hợp đồng Active (index `uq_member_one_active_subscription`) |
 | OF_PLAN | MEMBERSHIP_PLAN – MEMBER_SUBSCRIPTION | 1:N | SUBSCRIPTION toàn phần | Hợp đồng gắn đúng một gói |

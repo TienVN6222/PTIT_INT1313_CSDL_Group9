@@ -704,7 +704,7 @@ elif menu == "📅 Lập Lịch PT 1-1 & Lớp Nhóm":
             
     with sched_tab2:
         st.markdown("#### Xếp Lịch Lớp Học Nhóm Mới")
-        st.caption("Lưu ý: Ràng buộc Trigger BR-19 sẽ tự động ngăn chặn nếu chọn Phòng tập đang BẢO TRÌ!")
+        st.caption("Lưu ý: Ràng buộc Trigger BR-19 sẽ tự động ngăn chặn nếu chọn Phòng tập không ở trạng thái Active (đang BẢO TRÌ hoặc ngừng sử dụng)!")
         try:
             rooms_df = run_query("SELECT room_id, room_name, max_capacity, status FROM facilities_room ORDER BY room_id;")
             trainers_df2 = run_query("SELECT u.user_id, u.full_name FROM user_account u JOIN user_role ur ON u.user_id = ur.user_id WHERE ur.role_id = 2;")
@@ -1078,7 +1078,7 @@ ORDER BY
             "chart_type": "table_only"
         },
         "10. Phát hiện xung đột lịch tập (Overlapping Intervals) của HLV": {
-            "business": "Kiểm toán tính toàn vẹn (Integrity Check) để phát hiện bất kỳ sự kiện nào bị trùng giờ của cùng 1 Huấn luyện viên. Vì BR-12/BR-15/BR-16 đã được CSDL cưỡng chế nên kết quả kỳ vọng là 0 dòng.",
+            "business": "Kiểm toán tính toàn vẹn (Integrity Check) để phát hiện bất kỳ sự kiện nào bị trùng giờ của cùng 1 Huấn luyện viên. Vì BR-12 đã được CSDL cưỡng chế nên kết quả kỳ vọng là 0 dòng.",
             "technique": "CTE (WITH), Self-Join khoảng thời gian giao nhau (start_a < end_b AND end_a > start_b)",
             "sql": """WITH all_trainer_events AS (
     -- Tập hợp tất cả sự kiện có sự tham gia của HLV (Lớp nhóm)
@@ -1094,7 +1094,7 @@ ORDER BY
 
     UNION ALL
 
-    -- Tập hợp tất cả ca dạy PT 1-1 chưa bị hủy
+    -- Tập hợp tất cả ca dạy PT 1-1 còn chiếm giờ (trừ ca đã hủy, giống ex_pt_trainer_no_overlap)
     SELECT
         pb.booking_id AS event_id,
         'PT_BOOKING' AS event_type,
@@ -1105,7 +1105,7 @@ ORDER BY
     FROM
         pt_booking pb
     WHERE
-        pb.status IN ('Scheduled', 'Completed')
+        pb.status NOT IN ('Cancelled', 'Late_Cancelled')
 )
 SELECT
     e1.trainer_id,
@@ -1231,7 +1231,7 @@ elif menu == "⚡ Kiểm Thử Triggers & Ràng Buộc":
             
     with t_tab2:
         st.markdown("#### Kiểm thử: Chặn Xếp Lịch Vào Phòng Hoặc Máy Tập Đang Bảo Trì")
-        st.caption("Quy tắc BR-19: Phòng tập hoặc Thiết bị có trạng thái 'Under_Maintenance' sẽ bị trigger chặn ngay lập tức và bắn lỗi.")
+        st.caption("Quy tắc BR-19: Phòng tập không 'Active' hoặc Thiết bị không 'Operational' (bảo trì, ngừng dùng, thanh lý) sẽ bị trigger chặn ngay lập tức và bắn lỗi.")
         
         # Lấy phòng đang bảo trì
         m_rooms = run_query("SELECT room_id, room_name, status FROM facilities_room WHERE status = 'Under_Maintenance';")

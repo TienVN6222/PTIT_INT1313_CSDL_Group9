@@ -347,9 +347,9 @@ ORDER BY
 
 
 -- ============================================================================
--- CÂU TRUY VẤN 10: PHÁT HIỆN XUNG ĐỘT TRÙNG LỊCH CỦA HUẤN LUYỆN VIÊN HOẶC PHÒNG TẬP
+-- CÂU TRUY VẤN 10: PHÁT HIỆN XUNG ĐỘT TRÙNG LỊCH CỦA HUẤN LUYỆN VIÊN (LỚP NHÓM VÀ CA PT)
 -- Mục đích nghiệp vụ: Kiểm toán tính toàn vẹn (Integrity Audit) nhằm phát hiện
--- bất kỳ sự kiện nào bị đụng giờ (Overlapping Time Intervals - BR-12, BR-15) giữa
+-- bất kỳ sự kiện nào bị đụng giờ (Overlapping Time Intervals - BR-12) giữa
 -- các lớp học nhóm và ca tập PT 1-1 của cùng Huấn luyện viên.
 -- Kỹ thuật SQL: CTE (WITH), Self-Join khoảng thời gian (start_a < end_b AND end_a > start_b)
 -- Ghi chú: do các quy tắc BR-12/BR-15/BR-16 nay đã được CSDL cưỡng chế (EXCLUDE constraint và
@@ -370,7 +370,8 @@ WITH all_trainer_events AS (
 
     UNION ALL
 
-    -- Tập hợp tất cả ca dạy PT 1-1 chưa bị hủy
+    -- Tập hợp tất cả ca dạy PT 1-1 còn chiếm giờ (giống điều kiện của ex_pt_trainer_no_overlap:
+    -- mọi trạng thái trừ ca đã hủy, nên ca No_Show vẫn được tính)
     SELECT
         pb.booking_id AS event_id,
         'PT_BOOKING' AS event_type,
@@ -381,7 +382,7 @@ WITH all_trainer_events AS (
     FROM
         pt_booking pb
     WHERE
-        pb.status IN ('Scheduled', 'Completed')
+        pb.status NOT IN ('Cancelled', 'Late_Cancelled')
 )
 SELECT
     e1.trainer_id,

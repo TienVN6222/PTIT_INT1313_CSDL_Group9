@@ -2,7 +2,7 @@
 
 > **Môi trường kiểm thử:** PostgreSQL 16 (image `postgres:16-alpine`), nạp lần lượt `01_schema_ddl.sql` → `02_mock_data/01..08` → `04_triggers_views.sql` → `08_rbac_security.sql` (khi kiểm thử phân quyền).
 > **Ngày chạy:** 16/11/2026.
-> **Script:** [`05_constraint_test_cases.sql`](05_constraint_test_cases.sql) (mục 5.1, 109 test), [`06_performance_test_cases.sql`](06_performance_test_cases.sql) (mục 4.2, 8 test) và [`09_rbac_test_cases.sql`](09_rbac_test_cases.sql) (mục 5.2, 66 test). Cả ba script đều được bọc trong `BEGIN ... ROLLBACK` nên **không làm thay đổi dữ liệu mẫu**.
+> **Script:** [`05_constraint_test_cases.sql`](05_constraint_test_cases.sql) (mục 5.1, 114 test), [`06_performance_test_cases.sql`](06_performance_test_cases.sql) (mục 4.2, 8 test) và [`09_rbac_test_cases.sql`](09_rbac_test_cases.sql) (mục 5.2, 66 test). Cả ba script đều được bọc trong `BEGIN ... ROLLBACK` nên **không làm thay đổi dữ liệu mẫu**.
 > **Người thực hiện (BR-23):** mọi thao tác ghi vào 5 bảng giao dịch cần `app.current_user_id`; các script test tự đặt biến này ở đầu tập tin. Khi chạy SQL thủ công, hãy `SET app.current_user_id = '<user_id>';` trước, nếu không CSDL từ chối (lỗi `P0001`, `BR-23`) theo thiết kế.
 > **Nạp lại trên CSDL đã có (BR-10):** Bản nạp lại (01 `DROP` `billing_log`, 04 `DROP`/`CREATE` trigger và hàm bất biến) bị event trigger BR-10 chặn, kể cả với superuser. Cách đơn giản nhất là tạo CSDL mới (`docker compose down -v` rồi `docker compose up --build`). Nếu muốn nạp lại tại chỗ, superuser đặt lối thoát trong cùng phiên `psql` (`SET app.allow_billing_maintenance = 'on';` trước khi `\i` các tập tin) hoặc tắt event trigger bằng hai lệnh riêng `ALTER EVENT TRIGGER evt_protect_billing_log DISABLE;` và `ALTER EVENT TRIGGER evt_protect_billing_log_drop DISABLE;`, sau đó nạp lại 08 để tạo lại chúng. Script 06 tự đặt lối thoát này cho bước nạp dữ liệu hàng loạt.
 > **Dữ liệu mẫu tương đối theo ngày nạp:** các mốc thời gian trong `02_mock_data` được tính từ `CURRENT_DATE`/`CURRENT_TIMESTAMP` lúc nạp, nên các truy vấn "tháng này/quý này" luôn có dữ liệu. Các bảng kết quả dưới đây được sinh trực tiếp từ đầu ra `psql` thực tế; giá trị tuyệt đối của ngày giờ trong thông báo lỗi sẽ thay đổi theo ngày chạy, còn mã test, SQLSTATE và kết quả thì không.
@@ -41,7 +41,7 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 | `23P01` | exclusion_violation | `EXCLUDE USING gist` (chống trùng khoảng thời gian) |
 | `P0001` | raise_exception | Trigger PL/pgSQL chủ động `RAISE EXCEPTION` |
 
-### Kết quả: 109/109 test PASS (74 negative TC + 35 positive TP)
+### Kết quả: 114/114 test PASS (78 negative TC + 36 positive TP)
 
 | Mã | Quy tắc | Kịch bản | SQLSTATE mong đợi | SQLSTATE thực tế | Kết quả | Thông báo của CSDL |
 |---|---|---|---|---|---|---|
@@ -147,15 +147,20 @@ docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/0
 | TP-28 | BR-25 | Hủy muộn (< 24 giờ): trigger đổi thành Late_Cancelled và trừ đúng 1 buổi | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-29 | BR-25 | Bỏ tập (No_Show) bị trừ đúng 1 buổi (trg_update_remaining_pt_sessions) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-30 | BR-25 | Đổi Completed -> No_Show không bị trừ buổi lần thứ hai | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
-| TC-69 | BR-19 | Chuyển phòng sang bảo trì khi còn lớp học tương lai (trg_prevent_room_maintenance_with_future_classes) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Phòng tập "T05 phong BR19" (ID: 8) còn 1 lớp học sắp diễn ra; hãy dời hoặc hủy các lớp này trước khi chuyển sang BẢO TR |
+| TC-69 | BR-19 | Chuyển phòng sang bảo trì khi còn lớp học tương lai (trg_prevent_room_maintenance_with_future_classes) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Phòng tập "T05 phong BR19" (ID: 8) còn 1 lớp học sắp diễn ra; hãy dời hoặc hủy các lớp này trước khi chuyển sang Under |
 | TC-70 | BR-19 | Chuyển thiết bị sang bảo trì khi còn lượt giữ chỗ Reserved tương lai (trg_prevent_equipment_maintenance_with_future_reservations) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Thiết bị "T05 thiet bi BR19" (ID: 203) còn 1 lượt giữ chỗ (Reserved) trong tương lai; hãy hủy hoặc chuyển các lượt này  |
 | TC-71 | BR-19 | Mở ca bảo trì In_Progress cho thiết bị còn lượt giữ chỗ tương lai bị chặn (chuỗi trg_start_equipment_maintenance_insert -> BR-19) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Thiết bị "T05 thiet bi BR19" (ID: 204) còn 1 lượt giữ chỗ (Reserved) trong tương lai; hãy hủy hoặc chuyển các lượt này  |
 | TP-31 | BR-19 | Phòng không còn lớp tương lai được chuyển sang bảo trì | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-32 | BR-19 | Chèn nhật ký bảo trì In_Progress tự chuyển thiết bị sang Under_Maintenance (trg_start_equipment_maintenance_insert) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-33 | BR-19 | Hoàn tất ca bảo trì duy nhất tự đưa thiết bị về Operational (trg_finish_equipment_maintenance) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 | TP-34 | BR-19 | Còn ca In_Progress khác thì hoàn tất 1 ca chưa đưa thiết bị về Operational; hoàn tất nốt mới về Operational | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
+| TC-75 | BR-19 | Xếp lớp vào phòng ngừng sử dụng - Inactive (trg_prevent_class_in_maintenance_room) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Phòng tập "T05 phong Inactive" (ID: 23) đang ở trạng thái Inactive (chỉ phòng Active mới được xếp lớp). Không thể xếp l |
+| TC-76 | BR-19 | Giữ chỗ thiết bị đã thanh lý - Decommissioned (trg_prevent_equipment_reservation_under_maintenance) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Thiết bị "T05 thiet bi thanh ly" (ID: 535) đang ở trạng thái Decommissioned (chỉ thiết bị Operational mới được giữ chỗ) |
+| TC-77 | BR-19 | Chuyển phòng sang Inactive khi còn lớp học tương lai (trg_prevent_room_maintenance_with_future_classes) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Phòng tập "T05 phong BR19 G" (ID: 24) còn 1 lớp học sắp diễn ra; hãy dời hoặc hủy các lớp này trước khi chuyển sang Ina |
+| TC-78 | BR-19 | Thanh lý thiết bị (Decommissioned) khi còn lượt giữ chỗ Reserved tương lai (trg_prevent_equipment_maintenance_with_future_reservations) | P0001 | P0001 | PASS | Lỗi nghiệp vụ BR-19: Thiết bị "T05 thiet bi BR19" (ID: 536) còn 1 lượt giữ chỗ (Reserved) trong tương lai; hãy hủy hoặc chuyển các lượt này |
+| TP-36 | BR-19 | Thiết bị không còn lượt giữ chỗ tương lai được thanh lý (Decommissioned) | 00000 | 00000 | PASS | Thao tác hợp lệ được chấp nhận, kết quả đúng |
 
-Tổng: 109 test, đạt 109, không đạt 0.
+Tổng: 114 test, đạt 114, không đạt 0.
 
 ### Mức độ thực thi các quy tắc nghiệp vụ
 
@@ -165,7 +170,7 @@ Bộ test ở trên bao phủ BR-01 … BR-26. Bảng dưới đối chiếu v�
 |---|---|---|
 | BR-01 … BR-09, BR-11 … BR-21, BR-25, BR-26 | Đầy đủ ở CSDL | Thực thi bằng `CHECK`/`UNIQUE`/`EXCLUDE`/`FOREIGN KEY` và trigger; có test TC/TP tương ứng ở bảng trên. |
 | BR-10 (hóa đơn bất biến) | Đầy đủ ở CSDL (bốn lớp) | (1) Trigger `trg_billing_immutable_update/_delete/_truncate` chặn mọi role (TC-44..TC-49, TP-12..TP-14); (2) chỉ cấp `SELECT, INSERT` trên `billing_log` (AD-01..AD-03); (3) mọi đối tượng thuộc role `NOLOGIN` `gym_owner` nên không tài khoản đăng nhập nào `ALTER`/`DROP` được (EV-07..EV-12); (4) event trigger `evt_protect_billing_log`/`_drop` chặn cả superuser (EV-01..EV-05, EV-13). Giới hạn cố hữu: superuser là gốc tin cậy, vẫn bảo trì có chủ đích được bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'` (EV-06); thao tác phải tường minh. |
-| BR-19 (chặn khóa bảo trì) | Đầy đủ ở CSDL | Hai chiều: chặn xếp lịch mới vào phòng/thiết bị `Under_Maintenance` (TC-23, TC-34) và chặn chuyển phòng/thiết bị sang `Under_Maintenance` khi còn lớp / giữ chỗ `Reserved` tương lai (TC-69..TC-71); trạng thái thiết bị tự đồng bộ với `maintenance_log` (TP-31..TP-34; kỹ thuật viên chạy được trọn quy trình dưới role hạn chế, EA-03). |
+| BR-19 (chặn khóa bảo trì) | Đầy đủ ở CSDL | Hai chiều: chặn xếp lịch mới vào phòng không `Active` / thiết bị không `Operational` (TC-23, TC-34, TC-75, TC-76) và chặn chuyển phòng sang `Under_Maintenance`/`Inactive`, thiết bị sang `Under_Maintenance`/`Decommissioned` khi còn lớp / giữ chỗ `Reserved` tương lai (TC-69..TC-71, TC-77, TC-78, TP-36); trạng thái thiết bị tự đồng bộ với `maintenance_log` (TP-31..TP-34; kỹ thuật viên chạy được trọn quy trình dưới role hạn chế, EA-03). |
 | BR-22 (RBAC) | Đầy đủ ở mức CSDL | Bảng `role_permission` (ma trận quyền ứng dụng) và các lệnh `GRANT` trong `08_rbac_security.sql` vẫn được duy trì thủ công ở hai nơi, nhưng mọi sai lệch được phát hiện tự động bởi SY-01..SY-05 (chạy lại `09_rbac_test_cases.sql` sau khi đổi một trong hai nơi). |
 | BR-23 (vết người thực hiện) | Đầy đủ ở CSDL | `created_by_user_id NOT NULL`, `updated_by_user_id`, `updated_at` và khóa ngoại trên 5 bảng; `trg_fill_created_by` từ chối `INSERT` khi chưa đặt `app.current_user_id` (TC-72), `trg_set_updated_by` ghi người sửa (TP-22, TP-35), từ chối `UPDATE` khi chưa đặt biến (TC-73) và cấm đổi `created_by_user_id` (TC-74). Mọi chương trình ghi dữ liệu phải đặt `app.current_user_id` (ứng dụng, bộ lập lịch qua `SCHEDULER_ACTOR_USER_ID`, script test); thủ công cần `SET app.current_user_id = '<id>'`. |
 | BR-24 (tự động gia hạn/ân hạn) | Đầy đủ khi có bộ lập lịch ngoài | Logic nằm trong thủ tục `sp_process_subscription_renewals` (kiểm thử với ngày giả, TC-66, TP-23..TP-26). Docker demo có service `scheduler` (`fitzone_renewal_scheduler`) gọi thủ tục khi khởi động và mỗi `RENEWAL_INTERVAL_SECONDS` giây; production dùng `pg_cron`/cron. Nếu không có bộ lập lịch nào chạy thì quy tắc theo thời gian không tự kích hoạt. |
@@ -406,7 +411,7 @@ Kiểm tra thủ công ngày 17/11/2026 trên bản Docker demo (image `fitzone-
 | 3 lần sao lưu với `BACKUP_RETENTION=2` | Chỉ giữ 2 bản mới nhất |
 | Nội dung tệp sao lưu | Bắt đầu bằng `Salted__` (đã mã hóa), không lộ tên bảng dạng văn bản |
 | `verify-restore.sh` | ĐẠT: khôi phục vào `<db>_restore_check`, 18 bảng khớp số dòng với CSDL đang chạy; sai mật khẩu thì thoát mã 1 |
-| Bộ test ràng buộc trên máy chủ TLS | 109/109 PASS |
+| Bộ test ràng buộc trên máy chủ TLS | 114/114 PASS |
 | Bộ test RBAC trên máy chủ TLS | 66/66 PASS |
 | Tạo lại stack demo, giữ volume | Dữ liệu nguyên vẹn |
 | `verify-pitr.sh` (PITR) | ĐẠT: bản nền `pg_basebackup` + phát lại WAL đã lưu trữ trên máy chủ tạm; 24 dòng ghi SAU bản nền đều được khôi phục; xoay vòng giữ 2 bản nền và dọn WAL cũ (`pg_archivecleanup`) vẫn ĐẠT; thiếu kho WAL thì thoát mã 1 |

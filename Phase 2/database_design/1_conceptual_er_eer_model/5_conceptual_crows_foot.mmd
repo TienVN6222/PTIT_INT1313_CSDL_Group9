@@ -1,0 +1,138 @@
+---
+title: Mô hình khái niệm ER (Crow's Foot) - Gym Membership & PT Planner (Nhóm 9)
+---
+erDiagram
+    %% RBAC & tài khoản (nhiều - nhiều -> bảng nối user_role, role_permission)
+    USER_ACCOUNT }o--|{ ROLE : "có vai trò (HAS_ROLE)"
+    ROLE }o--o{ PERMISSION : "được cấp quyền (GRANTS)"
+
+    %% Chuyên biệt hóa chồng lấn, riêng phần: mỗi tài khoản có 0..1 hồ sơ mỗi loại
+    USER_ACCOUNT ||--o| MEMBER : "là"
+    USER_ACCOUNT ||--o| TRAINER : "là"
+    USER_ACCOUNT ||--o| STAFF : "là"
+
+    %% Gói tập & thanh toán
+    MEMBER ||--o{ MEMBER_SUBSCRIPTION : "đăng ký (SUBSCRIBES)"
+    MEMBERSHIP_PLAN ||--o{ MEMBER_SUBSCRIPTION : "thuộc gói (OF_PLAN)"
+    MEMBER_SUBSCRIPTION ||--o{ BILLING_LOG : "phát sinh hóa đơn (GENERATES)"
+
+    %% Buổi PT
+    MEMBER ||--o{ PT_BOOKING : "đặt buổi (BOOKS)"
+    TRAINER ||--o{ PT_BOOKING : "dạy (CONDUCTS)"
+    MEMBER_SUBSCRIPTION ||--o{ PT_BOOKING : "trừ buổi (CONSUMES)"
+
+    %% Lớp nhóm (ENROLLS_IN nhiều - nhiều -> bảng nối class_enrollment)
+    TRAINER ||--o{ CLASS_SCHEDULE : "đứng lớp (TEACHES)"
+    FACILITIES_ROOM ||--o{ CLASS_SCHEDULE : "tổ chức tại (HOSTS)"
+    MEMBER_SUBSCRIPTION }o--o{ CLASS_SCHEDULE : "ghi danh lớp (ENROLLS_IN)"
+
+    %% Thiết bị & bảo trì
+    FACILITIES_ROOM ||--o{ EQUIPMENT : "chứa (CONTAINS)"
+    EQUIPMENT ||--o{ MAINTENANCE_LOG : "được bảo trì (REPAIRED_IN)"
+    STAFF ||--o{ MAINTENANCE_LOG : "thực hiện (PERFORMS)"
+    EQUIPMENT ||--o{ EQUIPMENT_RESERVATION : "được giữ chỗ (RESERVED_FOR)"
+    %% Cung loại trừ XOR: mỗi lượt giữ máy thuộc đúng một nguồn (nét đứt)
+    PT_BOOKING |o..o{ EQUIPMENT_RESERVATION : "XOR - cho buổi PT (FOR_BOOKING)"
+    CLASS_SCHEDULE |o..o{ EQUIPMENT_RESERVATION : "XOR - cho lớp (FOR_CLASS)"
+
+    USER_ACCOUNT {
+        int user_id PK
+        string full_name
+        date dob
+        string email UK "duy nhất"
+        string phone UK "duy nhất"
+        string password_hash
+        string status
+    }
+    ROLE {
+        int role_id PK
+        string role_name UK "duy nhất"
+    }
+    PERMISSION {
+        int permission_id PK
+        string permission_code UK "duy nhất"
+        string module_name
+    }
+    MEMBER {
+        int user_id PK "lớp con của USER_ACCOUNT"
+        string health_notes
+    }
+    TRAINER {
+        int user_id PK "lớp con của USER_ACCOUNT"
+        string specialization
+        string bio
+        decimal current_rating "0-5"
+    }
+    STAFF {
+        int user_id PK "lớp con của USER_ACCOUNT"
+        string job_title
+        string department
+    }
+    MEMBERSHIP_PLAN {
+        int plan_id PK
+        string plan_name
+        decimal price
+        int duration_days
+        int total_sessions
+    }
+    MEMBER_SUBSCRIPTION {
+        int subscription_id PK
+        timestamp start_time
+        timestamp end_time
+        decimal actual_price
+        int remaining_sessions
+        string sub_status
+        boolean is_recurring
+    }
+    BILLING_LOG {
+        int billing_id PK
+        string invoice_no UK "duy nhất"
+        date billing_period_start
+        decimal amount
+        string payment_method
+        string payment_status
+    }
+    PT_BOOKING {
+        int booking_id PK
+        date booking_date
+        timestamp start_time
+        timestamp end_time
+        string status
+    }
+    CLASS_SCHEDULE {
+        int class_id PK
+        string class_name
+        timestamp start_time
+        timestamp end_time
+        int max_capacity
+        int current_enrolled "dẫn xuất"
+    }
+    FACILITIES_ROOM {
+        int room_id PK
+        string room_name
+        string room_type
+        int max_capacity
+        string status
+    }
+    EQUIPMENT {
+        int equipment_id PK
+        string equipment_name
+        string serial_number UK "duy nhất"
+        date purchase_date
+        int depreciation_months
+        string status
+    }
+    EQUIPMENT_RESERVATION {
+        int reservation_id PK
+        timestamp start_time
+        timestamp end_time
+        string status
+    }
+    MAINTENANCE_LOG {
+        int maintenance_id PK
+        string issue_description
+        decimal cost
+        timestamp start_time
+        timestamp end_time
+        string status
+    }

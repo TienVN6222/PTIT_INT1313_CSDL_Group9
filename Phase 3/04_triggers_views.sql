@@ -187,9 +187,11 @@ EXECUTE FUNCTION trg_fn_update_remaining_pt_sessions();
 -- ----------------------------------------------------------------------------
 -- TRIGGER 2: trg_prevent_booking_under_maintenance (BR-19, BR-21)
 -- Nghiệp vụ: Tự động ngăn chặn mọi thao tác tạo hoặc cập nhật lịch lớp học (class_schedule)
--- nếu Phòng tập đang ở trạng thái 'Under_Maintenance'; đồng thời ngăn chặn việc tạo lượt giữ chỗ
--- thiết bị (equipment_reservation) nếu Thiết bị đang ở trạng thái 'Under_Maintenance'.
--- Chiều ngược lại (2.3 - 2.6): không cho chuyển phòng/thiết bị sang bảo trì khi còn lịch tương lai,
+-- nếu Phòng tập không ở trạng thái 'Active' (đang bảo trì hoặc ngừng sử dụng); đồng thời ngăn chặn
+-- việc tạo lượt giữ chỗ thiết bị (equipment_reservation) nếu Thiết bị không ở trạng thái 'Operational'
+-- (đang bảo trì hoặc đã thanh lý).
+-- Chiều ngược lại (2.3 - 2.6): không cho chuyển phòng/thiết bị sang bảo trì hoặc ngừng sử dụng /
+-- thanh lý khi còn lịch tương lai,
 -- và đồng bộ trạng thái thiết bị theo vòng đời ca bảo trì (maintenance_log).
 -- ----------------------------------------------------------------------------
 
@@ -205,9 +207,9 @@ BEGIN
     FROM facilities_room
     WHERE room_id = NEW.room_id;
 
-    IF (v_room_status = 'Under_Maintenance') THEN
-        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Phòng tập "%" (ID: %) hiện đang ở trạng thái BẢO TRÌ (Under_Maintenance). Không thể xếp lịch!',
-            v_room_name, NEW.room_id;
+    IF (v_room_status IS DISTINCT FROM 'Active') THEN
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Phòng tập "%" (ID: %) đang ở trạng thái % (chỉ phòng Active mới được xếp lớp). Không thể xếp lịch!',
+            v_room_name, NEW.room_id, v_room_status;
     END IF;
 
     RETURN NEW;
@@ -233,9 +235,9 @@ BEGIN
     FROM equipment
     WHERE equipment_id = NEW.equipment_id;
 
-    IF (v_equip_status = 'Under_Maintenance') THEN
-        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Thiết bị "%" (ID: %) hiện đang BẢO TRÌ (Under_Maintenance). Không thể tạo lịch giữ chỗ!',
-            v_equip_name, NEW.equipment_id;
+    IF (v_equip_status IS DISTINCT FROM 'Operational') THEN
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Thiết bị "%" (ID: %) đang ở trạng thái % (chỉ thiết bị Operational mới được giữ chỗ). Không thể tạo lịch giữ chỗ!',
+            v_equip_name, NEW.equipment_id, v_equip_status;
     END IF;
 
     RETURN NEW;
@@ -249,7 +251,7 @@ FOR EACH ROW
 EXECUTE FUNCTION trg_fn_prevent_equipment_under_maintenance();
 
 
--- 2.3 Chuyển phòng tập sang bảo trì: không được còn lớp học sắp diễn ra trong phòng (BR-19)
+-- 2.3 Chuyển phòng tập sang bảo trì hoặc ngừng sử dụng (Inactive): không được còn lớp học sắp diễn ra trong phòng (BR-19)
 -- Nhân viên phải dời/hủy các lớp tương lai trước, nếu không việc đổi trạng thái bị từ chối.
 CREATE OR REPLACE FUNCTION trg_fn_prevent_room_maintenance_with_future_classes()
 RETURNS TRIGGER AS $$
@@ -263,8 +265,8 @@ BEGIN
       AND start_time > CURRENT_TIMESTAMP;
 
     IF (v_future_classes > 0) THEN
-        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Phòng tập "%" (ID: %) còn % lớp học sắp diễn ra; hãy dời hoặc hủy các lớp này trước khi chuyển sang BẢO TRÌ',
-            NEW.room_name, NEW.room_id, v_future_classes;
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Phòng tập "%" (ID: %) còn % lớp học sắp diễn ra; hãy dời hoặc hủy các lớp này trước khi chuyển sang %',
+            NEW.room_name, NEW.room_id, v_future_classes, NEW.status;
     END IF;
 
     RETURN NEW;
@@ -275,11 +277,11 @@ DROP TRIGGER IF EXISTS trg_prevent_room_maintenance_with_future_classes ON facil
 CREATE TRIGGER trg_prevent_room_maintenance_with_future_classes
 BEFORE UPDATE OF status ON facilities_room
 FOR EACH ROW
-WHEN (NEW.status = 'Under_Maintenance' AND OLD.status IS DISTINCT FROM NEW.status)
+WHEN (NEW.status IN ('Under_Maintenance', 'Inactive') AND OLD.status IS DISTINCT FROM NEW.status)
 EXECUTE FUNCTION trg_fn_prevent_room_maintenance_with_future_classes();
 
 
--- 2.4 Chuyển thiết bị sang bảo trì: không được còn lượt giữ chỗ 'Reserved' trong tương lai (BR-19)
+-- 2.4 Chuyển thiết bị sang bảo trì hoặc thanh lý (Decommissioned): không được còn lượt giữ chỗ 'Reserved' trong tương lai (BR-19)
 CREATE OR REPLACE FUNCTION trg_fn_prevent_equipment_maintenance_with_future_reservations()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -293,8 +295,8 @@ BEGIN
       AND start_time > CURRENT_TIMESTAMP;
 
     IF (v_future_reservations > 0) THEN
-        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Thiết bị "%" (ID: %) còn % lượt giữ chỗ (Reserved) trong tương lai; hãy hủy hoặc chuyển các lượt này trước khi chuyển sang BẢO TRÌ',
-            NEW.equipment_name, NEW.equipment_id, v_future_reservations;
+        RAISE EXCEPTION 'Lỗi nghiệp vụ BR-19: Thiết bị "%" (ID: %) còn % lượt giữ chỗ (Reserved) trong tương lai; hãy hủy hoặc chuyển các lượt này trước khi chuyển sang %',
+            NEW.equipment_name, NEW.equipment_id, v_future_reservations, NEW.status;
     END IF;
 
     RETURN NEW;
@@ -305,7 +307,7 @@ DROP TRIGGER IF EXISTS trg_prevent_equipment_maintenance_with_future_reservation
 CREATE TRIGGER trg_prevent_equipment_maintenance_with_future_reservations
 BEFORE UPDATE OF status ON equipment
 FOR EACH ROW
-WHEN (NEW.status = 'Under_Maintenance' AND OLD.status IS DISTINCT FROM NEW.status)
+WHEN (NEW.status IN ('Under_Maintenance', 'Decommissioned') AND OLD.status IS DISTINCT FROM NEW.status)
 EXECUTE FUNCTION trg_fn_prevent_equipment_maintenance_with_future_reservations();
 
 
@@ -1246,18 +1248,18 @@ BEGIN
       AND (er.start_time < COALESCE(pb.start_time, cs.start_time) OR er.end_time > COALESCE(pb.end_time, cs.end_time));
     IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-21: %s lượt giữ chỗ nằm ngoài khung giờ ca/lớp', v_count); END IF;
 
-    -- BR-19: phòng/thiết bị đang bảo trì không còn lịch tương lai; thiết bị có ca In_Progress phải Under_Maintenance
+    -- BR-19: phòng/thiết bị đang bảo trì hoặc ngừng dùng/thanh lý không còn lịch tương lai; thiết bị có ca In_Progress phải Under_Maintenance
     SELECT COUNT(*) INTO v_count
     FROM class_schedule AS cs
     JOIN facilities_room AS r ON r.room_id = cs.room_id
-    WHERE r.status = 'Under_Maintenance' AND cs.start_time > CURRENT_TIMESTAMP;
-    IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-19: %s lớp tương lai nằm trong phòng đang bảo trì', v_count); END IF;
+    WHERE r.status <> 'Active' AND cs.start_time > CURRENT_TIMESTAMP;
+    IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-19: %s lớp tương lai nằm trong phòng không Active', v_count); END IF;
 
     SELECT COUNT(*) INTO v_count
     FROM equipment_reservation AS er
     JOIN equipment AS e ON e.equipment_id = er.equipment_id
-    WHERE e.status = 'Under_Maintenance' AND er.status = 'Reserved' AND er.start_time > CURRENT_TIMESTAMP;
-    IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-19: %s lượt giữ chỗ tương lai của thiết bị đang bảo trì', v_count); END IF;
+    WHERE e.status <> 'Operational' AND er.status = 'Reserved' AND er.start_time > CURRENT_TIMESTAMP;
+    IF v_count > 0 THEN v_violations := v_violations || FORMAT('BR-19: %s lượt giữ chỗ tương lai của thiết bị không Operational', v_count); END IF;
 
     SELECT COUNT(*) INTO v_count
     FROM equipment AS e

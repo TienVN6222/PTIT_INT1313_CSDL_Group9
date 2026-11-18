@@ -1296,6 +1296,58 @@ SELECT pg_temp.expect_success('TP-34', 'BR-19', 'Còn ca In_Progress khác thì 
 ], $q$SELECT CURRENT_SETTING('t05.mid_status') = 'Under_Maintenance'
           AND (SELECT status FROM equipment WHERE serial_number = 'T05-BR19-E') = 'Operational'$q$);
 
+-- BR-19 mở rộng: phòng ngừng sử dụng (Inactive) và thiết bị đã thanh lý (Decommissioned) cũng không được
+-- xếp lịch / giữ chỗ; không được chuyển sang các trạng thái này khi còn lịch tương lai.
+SELECT pg_temp.expect_error('TC-75', 'BR-19', 'Xếp lớp vào phòng ngừng sử dụng - Inactive (trg_prevent_class_in_maintenance_room)', 'P0001', ARRAY[
+    $q$INSERT INTO facilities_room (room_name, max_capacity, room_type, status) VALUES ('T05 phong Inactive', 10, 'Gym_Floor', 'Inactive')$q$,
+    $q$SELECT pg_temp.mk_class('T05-LOP-INACTIVE', 6, (SELECT room_id FROM facilities_room WHERE room_name = 'T05 phong Inactive'),
+                              pg_temp.slot(33, 21), pg_temp.slot(33, 22))$q$
+], 'chỉ phòng Active');
+
+SELECT pg_temp.expect_error('TC-76', 'BR-19', 'Giữ chỗ thiết bị đã thanh lý - Decommissioned (trg_prevent_equipment_reservation_under_maintenance)', 'P0001', ARRAY[
+    $q$INSERT INTO equipment (room_id, equipment_name, serial_number, purchase_date, depreciation_months, status)
+       VALUES (1, 'T05 thiet bi thanh ly', 'T05-BR19-F', CURRENT_DATE, 60, 'Decommissioned')$q$,
+    $q$SELECT pg_temp.mk_pt(11, 5, 1, pg_temp.slot(34, 21), pg_temp.slot(34, 22))$q$,
+    $q$INSERT INTO equipment_reservation (equipment_id, booking_id, start_time, end_time)
+       SELECT e.equipment_id, pb.booking_id, pb.start_time, pb.end_time
+       FROM equipment AS e, pt_booking AS pb
+       WHERE e.serial_number = 'T05-BR19-F'
+         AND pb.subscription_id = 1
+         AND pb.start_time = pg_temp.slot(34, 21)$q$
+], 'chỉ thiết bị Operational');
+
+SELECT pg_temp.expect_error('TC-77', 'BR-19', 'Chuyển phòng sang Inactive khi còn lớp học tương lai (trg_prevent_room_maintenance_with_future_classes)', 'P0001', ARRAY[
+    $q$INSERT INTO facilities_room (room_name, max_capacity, room_type) VALUES ('T05 phong BR19 G', 10, 'Gym_Floor')$q$,
+    $q$SELECT pg_temp.mk_class('T05-LOP-BR19-G', 6, (SELECT room_id FROM facilities_room WHERE room_name = 'T05 phong BR19 G'),
+                              pg_temp.slot(35, 21), pg_temp.slot(35, 22))$q$,
+    $q$UPDATE facilities_room
+       SET status = 'Inactive'
+       WHERE room_name = 'T05 phong BR19 G'$q$
+], 'dời hoặc hủy các lớp này');
+
+SELECT pg_temp.expect_error('TC-78', 'BR-19', 'Thanh lý thiết bị (Decommissioned) khi còn lượt giữ chỗ Reserved tương lai (trg_prevent_equipment_maintenance_with_future_reservations)', 'P0001', ARRAY[
+    $q$INSERT INTO equipment (room_id, equipment_name, serial_number, purchase_date, depreciation_months)
+       VALUES (1, 'T05 thiet bi BR19', 'T05-BR19-H', CURRENT_DATE, 60)$q$,
+    $q$SELECT pg_temp.mk_pt(11, 5, 1, pg_temp.slot(36, 21), pg_temp.slot(36, 22))$q$,
+    $q$INSERT INTO equipment_reservation (equipment_id, booking_id, start_time, end_time)
+       SELECT e.equipment_id, pb.booking_id, pb.start_time, pb.end_time
+       FROM equipment AS e, pt_booking AS pb
+       WHERE e.serial_number = 'T05-BR19-H'
+         AND pb.subscription_id = 1
+         AND pb.start_time = pg_temp.slot(36, 21)$q$,
+    $q$UPDATE equipment
+       SET status = 'Decommissioned'
+       WHERE serial_number = 'T05-BR19-H'$q$
+], 'hủy hoặc chuyển các lượt này');
+
+SELECT pg_temp.expect_success('TP-36', 'BR-19', 'Thiết bị không còn lượt giữ chỗ tương lai được thanh lý (Decommissioned)', ARRAY[
+    $q$INSERT INTO equipment (room_id, equipment_name, serial_number, purchase_date, depreciation_months)
+       VALUES (1, 'T05 thiet bi BR19', 'T05-BR19-I', CURRENT_DATE, 60)$q$,
+    $q$UPDATE equipment
+       SET status = 'Decommissioned'
+       WHERE serial_number = 'T05-BR19-I'$q$
+], $q$SELECT status = 'Decommissioned' FROM equipment WHERE serial_number = 'T05-BR19-I'$q$);
+
 
 -- ============================================================================
 -- BÁO CÁO KẾT QUẢ

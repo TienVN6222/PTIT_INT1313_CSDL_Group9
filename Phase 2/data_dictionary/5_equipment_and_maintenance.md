@@ -14,7 +14,7 @@ Quản lý thiết bị máy tập, theo dõi khấu hao, lịch sử giữ ch�
 | serial_number | VARCHAR(100) | UK | No | None | Mã series thiết bị duy nhất. `uq_equipment_serial` |
 | purchase_date | DATE | None | No | None | Ngày nhập mua đưa vào sử dụng (BR-26) |
 | depreciation_months | INT | None | No | None | Số tháng khấu hao dự kiến. `chk_equipment_depreciation`: `depreciation_months > 0` (BR-26) |
-| status | VARCHAR(20) | None | No | 'Operational' | Trạng thái máy. `chk_equipment_status`: `IN ('Operational', 'Under_Maintenance', 'Decommissioned')`. Trigger `trg_prevent_equipment_reservation_under_maintenance` cấm giữ chỗ máy không 'Operational' (BR-19) |
+| status | VARCHAR(20) | None | No | 'Operational' | Trạng thái máy. `chk_equipment_status`: `IN ('Operational', 'Under_Maintenance', 'Decommissioned')`. Trigger `trg_prevent_equipment_reservation_under_maintenance` cấm giữ chỗ máy không 'Operational'; trigger `trg_prevent_equipment_maintenance_with_future_reservations` cấm chuyển sang `Under_Maintenance`/`Decommissioned` khi còn giữ chỗ `Reserved` tương lai (BR-19) |
 
 **Chỉ mục:** `idx_equipment_status (status)`.
 

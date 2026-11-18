@@ -1136,7 +1136,7 @@ WITH all_trainer_events AS (
     UNION ALL
     SELECT pb.trainer_user_id, pb.start_time, pb.end_time, 'P' || pb.booking_id
     FROM pt_booking pb
-    WHERE pb.status IN ('Scheduled', 'Completed')
+    WHERE pb.status NOT IN ('Cancelled', 'Late_Cancelled')
 )
 SELECT
     e1.trainer_id,
@@ -1529,7 +1529,7 @@ VALUES (18, 5, 8, (CURRENT_DATE + 12), CURRENT_DATE + INTERVAL '12 days 21 hours
 
 ### B.2.9. `trg_prevent_class_in_maintenance_room`, `trg_prevent_equipment_reservation_under_maintenance` – BR-19
 
-`BEFORE INSERT OR UPDATE OF room_id` trên `class_schedule` và `BEFORE INSERT OR UPDATE OF equipment_id` trên `equipment_reservation`: tra trạng thái phòng/thiết bị, nếu `Under_Maintenance` thì `RAISE EXCEPTION` kèm tên phòng/thiết bị. Dùng `BEFORE` để chặn **trước khi ghi**, nên không cần hoàn tác. Dùng `UPDATE OF room_id` để chỉ chạy khi thực sự đổi phòng.
+`BEFORE INSERT OR UPDATE OF room_id` trên `class_schedule` và `BEFORE INSERT OR UPDATE OF equipment_id` trên `equipment_reservation`: tra trạng thái phòng/thiết bị, nếu phòng không `Active` hoặc thiết bị không `Operational` thì `RAISE EXCEPTION` (kèm tên trạng thái hiện tại) kèm tên phòng/thiết bị. Dùng `BEFORE` để chặn **trước khi ghi**, nên không cần hoàn tác. Dùng `UPDATE OF room_id` để chỉ chạy khi thực sự đổi phòng.
 
 ```sql
 -- LỖI MONG ĐỢI: P0001

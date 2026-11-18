@@ -156,3 +156,5 @@
 **Lưu ý trung thực:** các số liệu kiểm thử nêu trong `Phase 3/07_test_results.md` được cập nhật bởi bước tích hợp cuối; nhóm cần chạy lại các script trước khi nộp. Không thể xác định từ Git ai là người thực hiện từng thay đổi nói trên.
 
 **17/11/2026 (bổ sung):** bắt buộc TLS cho mọi kết nối mạng đến CSDL (`pg_hba.conf` `hostssl`); thêm service `backup` sao lưu mã hóa tự động và `verify-restore.sh` kiểm tra khôi phục (ĐẠT, 18 bảng khớp); test ràng buộc 109/109 và RBAC 66/66 vẫn đạt trên máy chủ TLS. Bổ sung lưu trữ WAL liên tục (mã hóa) và `pg_basebackup` cho khôi phục theo thời điểm; `verify-pitr.sh` ĐẠT trên stack demo.
+
+**18/11/2026 (bổ sung):** rà soát thiết kế so với triển khai. Sửa BR-19 cho khớp từ điển dữ liệu: chỉ xếp lớp vào phòng `Active` và chỉ giữ chỗ thiết bị `Operational` (trước đây phòng `Inactive` và thiết bị `Decommissioned` vẫn xếp lịch được); không cho chuyển phòng sang `Inactive` hoặc thanh lý thiết bị khi còn lịch tương lai. Q10 chỉ kiểm trùng lịch HLV và tính cả ca `No_Show` (cùng điều kiện với `ex_pt_trainer_no_overlap`). Thêm TC-75..TC-78 và TP-36: test ràng buộc 114/114, RBAC 66/66 đạt.

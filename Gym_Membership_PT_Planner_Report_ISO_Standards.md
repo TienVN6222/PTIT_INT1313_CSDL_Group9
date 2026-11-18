@@ -172,7 +172,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | FR-13 | B | Thủ tục idempotent `sp_process_subscription_renewals(p_as_of, p_grace_days)`: chuyển hợp đồng không tự gia hạn quá hạn sang `Expired`; phát hành hóa đơn `Pending` cho hợp đồng tự gia hạn quá hạn; chuyển `Suspended` khi quá ân hạn chưa thanh toán. | BR-24 |
 | FR-14 | B | Gia hạn hợp đồng (cộng `duration_days`, đặt lại `remaining_sessions`, chuyển `Active`) khi hóa đơn gia hạn được thanh toán. | BR-24, BR-07 |
 | FR-15 | C | Tạo `class_schedule` với `end_time > start_time`, `max_capacity > 0`; từ chối lịch chồng giờ của cùng HLV hoặc cùng phòng. | BR-12, BR-15, BR-17 |
-| FR-16 | C | Từ chối xếp lớp vào phòng `Under_Maintenance`; từ chối chuyển phòng sang `Under_Maintenance` khi còn lớp sắp diễn ra. | BR-19 |
+| FR-16 | C | Từ chối xếp lớp vào phòng không ở trạng thái `Active` (`Under_Maintenance` hoặc `Inactive`); từ chối chuyển phòng sang `Under_Maintenance` hoặc `Inactive` khi còn lớp sắp diễn ra. | BR-19 |
 | FR-17 | C | Đăng ký lớp `class_enrollment` (mỗi hợp đồng một lần cho mỗi lớp); tự cập nhật `current_enrolled` khi đăng ký, hủy, xóa. | BR-14 |
 | FR-18 | C | Từ chối đăng ký khi lớp đã đủ `max_capacity`. | BR-14 |
 | FR-19 | C | Từ chối đăng ký lớp trùng giờ với ca PT hoặc lớp khác của hội viên; từ chối xếp lớp trùng ca PT của HLV. | BR-12, BR-16 |
@@ -184,7 +184,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | FR-25 | D | Hủy ca PT còn từ 24 giờ trở lên giữ `Cancelled` (không trừ buổi); còn dưới 24 giờ tự đổi thành `Late_Cancelled` (trừ 1 buổi). | BR-25 |
 | FR-26 | E | Lưu `equipment` với `serial_number` duy nhất, `purchase_date` bắt buộc, `depreciation_months > 0`. | BR-26 |
 | FR-27 | E | Giữ chỗ thiết bị `equipment_reservation` gắn đúng một nguồn (ca PT hoặc lớp); từ chối giữ chỗ trùng giờ trên cùng thiết bị. | BR-21 |
-| FR-28 | E | Từ chối giữ chỗ thiết bị đang bảo trì, trùng ca bảo trì `In_Progress` hoặc ngoài khung giờ ca/lớp; từ chối chuyển thiết bị sang `Under_Maintenance` khi còn lượt giữ chỗ tương lai; tự đồng bộ trạng thái thiết bị theo `maintenance_log`. | BR-19, BR-21 |
+| FR-28 | E | Từ chối giữ chỗ thiết bị không ở trạng thái `Operational` (`Under_Maintenance` hoặc `Decommissioned`), trùng ca bảo trì `In_Progress` hoặc ngoài khung giờ ca/lớp; từ chối chuyển thiết bị sang `Under_Maintenance` hoặc `Decommissioned` khi còn lượt giữ chỗ tương lai; tự đồng bộ trạng thái thiết bị theo `maintenance_log`. | BR-19, BR-21 |
 | FR-29 | E | Ghi `maintenance_log` với `cost >= 0`, `end_time >= start_time` (nếu có) và người thực hiện là nhân viên. | BR-20 |
 | FR-30 | E | Bắt buộc ghi `created_by_user_id` (NOT NULL) từ biến phiên `app.current_user_id` khi tạo hợp đồng, hóa đơn, lịch lớp, ca PT, nhật ký bảo trì (từ chối nếu chưa đặt biến); ghi `updated_by_user_id`, `updated_at` mỗi `UPDATE` và cấm đổi `created_by_user_id`. | BR-23 |
 | FR-31 | F | Cung cấp view `vw_active_member_subscriptions` liệt kê hợp đồng đang hiệu lực. | BR-05 |
@@ -214,7 +214,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | NFR-MNT-01 | Bảo trì | Mã SQL tuân thủ SQLStyle.guide (từ khóa HOA, định danh `snake_case`, thụt lề nhất quán). | Rà soát script |
 | NFR-MNT-02 | Bảo trì | Ràng buộc đặt tên theo tiền tố để truy vết tới BR. | `pk_`, `fk_`, `uq_`, `chk_`, `ex_`, `idx_`, `trg_`, `sp_` |
 | NFR-MNT-03 | Bảo trì | Script nạp đúng thứ tự phụ thuộc; nạp lại script trigger thì phải nạp lại script phân quyền. | Thứ tự nạp ở mục 4.1 |
-| NFR-MNT-04 | Bảo trì | Có bộ kiểm thử tự động cho ràng buộc, phân quyền và hiệu năng, chạy trong giao dịch rồi `ROLLBACK`. | 109 test ràng buộc, 66 test RBAC, 8 test hiệu năng |
+| NFR-MNT-04 | Bảo trì | Có bộ kiểm thử tự động cho ràng buộc, phân quyền và hiệu năng, chạy trong giao dịch rồi `ROLLBACK`. | 114 test ràng buộc, 66 test RBAC, 8 test hiệu năng |
 | NFR-USE-01 | Khả dụng | Lỗi nghiệp vụ của trigger nêu mã quy tắc (`BR-xx`) và đối tượng liên quan bằng tiếng Việt. | `RAISE EXCEPTION` trong hàm trigger |
 | NFR-USE-02 | Khả dụng | Ứng dụng minh họa kết nối bằng tài khoản không phải superuser (`gym_u_*`) và cho chọn người thực hiện để ghi vết `created_by_user_id`. | Ứng dụng Streamlit minh họa |
 
@@ -224,7 +224,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 - **Ràng buộc:** không tích hợp cổng thanh toán thật (thanh toán chỉ ghi nhận kết quả); PostgreSQL không có bộ lập lịch tích hợp nên BR-24 cần bộ lập lịch ngoài (container `scheduler` trong demo, `pg_cron`/cron trong production).
 - **Giả định:** ca PT diễn ra ở khu tập tự do, không gắn phòng; BR-15 chỉ áp dụng cho lớp nhóm.
 - **Giả định:** ứng dụng đặt `app.current_user_id` cho mỗi phiên (BR-23), nếu không thì thao tác ghi bị CSDL từ chối; chạy thủ công cần `SET app.current_user_id = '<id>'`, bộ lập lịch dùng `SCHEDULER_ACTOR_USER_ID` (mặc định 3).
-- **Giả định:** kỹ thuật viên tự cập nhật trạng thái `Under_Maintenance` của phòng/thiết bị; mỗi hội viên có tối đa một hợp đồng đang dùng tại một thời điểm.
+- **Giả định:** kỹ thuật viên tự cập nhật trạng thái `Under_Maintenance`/`Inactive` của phòng; trạng thái thiết bị được hệ thống tự đồng bộ theo nhật ký bảo trì (riêng `Decommissioned` do kỹ thuật viên đặt); mỗi hội viên có tối đa một hợp đồng đang dùng tại một thời điểm.
 - **Giả định:** chỉ mã hóa tệp dữ liệu trên đĩa máy chủ do hạ tầng triển khai đảm nhận; TLS và sao lưu mã hóa đã có trong demo.
 
 ### 1.2. Quy tắc nghiệp vụ & ràng buộc (Business Rules & Constraints)
@@ -253,7 +253,7 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 | **BR-16** | Không trùng lịch hội viên | Hội viên không tham gia 2 lịch (lớp hoặc ca PT) trùng giờ. | `ex_pt_member_no_overlap` (PT ↔ PT); trigger `trg_check_class_enrollment_conflicts`, `trg_check_pt_booking_conflicts`, `trg_check_class_schedule_conflicts` |
 | **BR-17** | Thời gian sự kiện hợp lệ | Với ca PT, lớp, giữ chỗ thiết bị: `end_time > start_time`; ngày ca PT trùng ngày bắt đầu. | `chk_pt_booking_time`, `chk_class_time`, `chk_reservation_time`, `chk_pt_booking_date` (CHECK) |
 | **BR-18** | Trừ buổi tập PT | Ca PT chỉ tạo khi hợp đồng `Active`, giờ trong thời hạn và số buổi còn lại lớn hơn số ca `Scheduled` chờ; trừ 1 buổi khi chuyển sang trạng thái tính phí (BR-25); không trừ khi đã bằng 0. | `trg_check_pt_booking_creation` (khóa tư vấn); `trg_update_remaining_pt_sessions` (`FOR UPDATE`); `chk_subscription_remaining`; `fk_booking_subscription_member` |
-| **BR-19** | Chặn khóa bảo trì | Không xếp lớp vào phòng, không giữ chỗ thiết bị đang bảo trì hoặc trùng ca `In_Progress`; không chuyển phòng/thiết bị sang `Under_Maintenance` khi còn lịch tương lai; trạng thái thiết bị đồng bộ với `maintenance_log`. | `trg_prevent_class_in_maintenance_room`, `trg_prevent_equipment_reservation_under_maintenance`, `trg_check_reservation_window`, `trg_prevent_room_maintenance_with_future_classes`, `trg_prevent_equipment_maintenance_with_future_reservations`, `trg_start_equipment_maintenance_*`, `trg_finish_equipment_maintenance` (`SECURITY DEFINER`) |
+| **BR-19** | Chặn khóa bảo trì | Chỉ xếp lớp vào phòng `Active`, chỉ giữ chỗ thiết bị `Operational` và không trùng ca `In_Progress`; không chuyển phòng sang `Under_Maintenance`/`Inactive` hoặc thiết bị sang `Under_Maintenance`/`Decommissioned` khi còn lịch tương lai; trạng thái thiết bị đồng bộ với `maintenance_log`. | `trg_prevent_class_in_maintenance_room`, `trg_prevent_equipment_reservation_under_maintenance`, `trg_check_reservation_window`, `trg_prevent_room_maintenance_with_future_classes`, `trg_prevent_equipment_maintenance_with_future_reservations`, `trg_start_equipment_maintenance_*`, `trg_finish_equipment_maintenance` (`SECURITY DEFINER`) |
 | **BR-20** | Nhật ký bảo trì hợp lệ | Chi phí không âm, `end_time` (nếu có) không trước `start_time`, người thực hiện là nhân viên. | `chk_maintenance_cost`, `chk_maintenance_time`, `chk_maintenance_status`; `fk_maintenance_staff`, `fk_maintenance_equipment` |
 | **BR-21** | Chống đụng máy tập | Thiết bị không bị giữ chỗ trùng giờ; mỗi lượt thuộc đúng một nguồn (ca PT hoặc lớp), nằm trong khung giờ nguồn và không trùng bảo trì. | `ex_reservation_equipment_no_overlap` (EXCLUDE gist); `chk_reservation_source`; `trg_check_reservation_window` |
 | **BR-22** | Phân quyền RBAC | Tài khoản có một hoặc nhiều vai trò (Admin, Receptionist, Trainer, Technician, Member); quyền cấp theo đặc quyền tối thiểu. | `role`, `user_role` (`pk_user_role`), `permission`, `role_permission`; 5 role `gym_role_*` NOLOGIN, `REVOKE ALL ... FROM PUBLIC` rồi `GRANT` (cả mức cột); `SECURITY DEFINER SET search_path = public, pg_temp`; test SY-01..SY-05 kiểm tra `role_permission` khớp `GRANT` |
@@ -271,28 +271,28 @@ Các yêu cầu chức năng chia thành 6 nhóm: A – Tài khoản và phân q
 - **Lưu ý BR-22, BR-23:** `role_permission` và các lệnh `GRANT` vẫn duy trì thủ công ở hai nơi, nhưng sai lệch được phát hiện tự động bởi test SY-01..SY-05; mọi chương trình ghi dữ liệu phải đặt `app.current_user_id`.
 ## 2. Thiết kế cơ sở dữ liệu (Database Design – ISO/IEC 19505 / IE Standards)
 
-Mô hình khái niệm được vẽ theo ký hiệu EER (Enhanced Entity–Relationship) của Elmasri & Navathe, độc lập với hệ quản trị CSDL. Theo yêu cầu của tài liệu chuẩn, nhóm bổ sung sơ đồ vật lý IE Crow's Foot sinh trực tiếp từ script DDL, bảo đảm khớp 100% với lược đồ thật. Mục 2.2 ánh xạ EER sang 18 quan hệ theo thuật toán 9 bước của Elmasri & Navathe; mục 2.3 chứng minh chuẩn hóa.
+Mô hình khái niệm EER (Enhanced Entity–Relationship: thực thể, quan hệ, chuyên biệt hóa, cung loại trừ) được vẽ theo ký hiệu Crow's Foot cho dễ đọc, độc lập với hệ quản trị CSDL. Theo yêu cầu của tài liệu chuẩn, nhóm bổ sung sơ đồ vật lý IE Crow's Foot sinh trực tiếp từ script DDL, bảo đảm khớp 100% với lược đồ thật. Mục 2.2 ánh xạ EER sang 18 quan hệ theo thuật toán 9 bước của Elmasri & Navathe; mục 2.3 chứng minh chuẩn hóa.
 
 ### 2.1. Mô hình khái niệm – Sơ đồ ER/EER (Conceptual Model – ER/EER Diagram)
 
 #### 2.1.1. Chú giải ký hiệu
 
-*Bảng 2-1. Chú giải ký hiệu của sơ đồ EER (Elmasri & Navathe)*
+*Bảng 2-1. Chú giải ký hiệu Crow's Foot của sơ đồ khái niệm*
 
 | Ký hiệu | Ý nghĩa |
 | --- | --- |
-| Hình chữ nhật / hình thoi | Kiểu thực thể (entity type) / kiểu quan hệ (relationship type) |
-| Hình oval | Thuộc tính; <u>gạch chân</u> = khóa; oval nét đứt = thuộc tính dẫn xuất (derived) |
-| Đường đơn / đường đôi | Tham gia riêng phần (partial) / toàn phần (total) |
-| 1, N, M | Tỷ số lực lượng (cardinality ratio) |
-| Vòng tròn `o` + ký hiệu ⊂ | Chuyên biệt hóa chồng lấn (overlapping); ⊂ hướng về lớp con |
-| Vòng tròn `XOR` nét đứt | Cung loại trừ (exclusive arc) |
+| Hộp chữ nhật | Kiểu thực thể; mỗi dòng: kiểu dữ liệu, tên thuộc tính, PK = khóa chính, UK = khóa duy nhất, cột cuối = ghi chú ("dẫn xuất" = thuộc tính dẫn xuất) |
+| Đường nối + nhãn | Kiểu quan hệ (tên tiếng Việt, tên gốc trong ngoặc) |
+| Chân chim / vạch sát thực thể | Bậc tối đa: nhiều (N) / một (1) |
+| Vòng tròn / vạch phía ngoài | Bậc tối thiểu: 0 = tham gia riêng phần / 1 = tham gia toàn phần |
+| Đường nối nhãn "là" | Chuyên biệt hóa chồng lấn, riêng phần: mỗi USER_ACCOUNT có 0..1 hồ sơ MEMBER, TRAINER, STAFF |
+| Đường nét đứt nhãn XOR | Cung loại trừ: mỗi lượt giữ máy thuộc đúng một nguồn (buổi PT hoặc lớp) |
 
-#### 2.1.2. Sơ đồ EER
+#### 2.1.2. Sơ đồ ER (ký hiệu Crow's Foot)
 
-![Sơ đồ EER (ký hiệu Elmasri & Navathe) của hệ thống Gym Membership & PT Planner](Phase%202/database_design/1_conceptual_er_eer_model/3_eer_diagram.png)
+![Mô hình khái niệm ER (ký hiệu Crow's Foot) của hệ thống Gym Membership & PT Planner](Phase%202/database_design/1_conceptual_er_eer_model/5_conceptual_crows_foot.png)
 
-*Hình 2-1. Sơ đồ EER (ký hiệu Elmasri & Navathe) của hệ thống Gym Membership & PT Planner*
+*Hình 2-1. Mô hình khái niệm ER (ký hiệu Crow's Foot) của hệ thống Gym Membership & PT Planner*
 
 #### 2.1.3. Kiểu thực thể và kiểu quan hệ
 
@@ -322,7 +322,7 @@ Mô hình khái niệm được vẽ theo ký hiệu EER (Enhanced Entity–Rela
 
 | Quan hệ | Thực thể tham gia | Tỷ số | Tham gia | Ràng buộc / BR liên quan |
 | --- | --- | --- | --- | --- |
-| HAS_ROLE | USER_ACCOUNT – ROLE | M:N | USER_ACCOUNT toàn phần (≥1 vai trò); ROLE riêng phần | BR-22 |
+| HAS_ROLE | USER_ACCOUNT – ROLE | M:N | USER_ACCOUNT toàn phần (≥1 vai trò, bảo đảm ở quy trình tạo tài khoản, không khai báo được bằng ràng buộc đơn bảng); ROLE riêng phần | BR-22 |
 | GRANTS | ROLE – PERMISSION | M:N | riêng phần cả hai | BR-22 |
 | SUBSCRIBES | MEMBER – MEMBER_SUBSCRIPTION | 1:N | SUBSCRIPTION toàn phần; MEMBER riêng phần | Tối đa 1 hợp đồng Active (`uq_member_one_active_subscription`) |
 | OF_PLAN | MEMBERSHIP_PLAN – MEMBER_SUBSCRIPTION | 1:N | SUBSCRIPTION toàn phần | Hợp đồng gắn đúng một gói |
@@ -340,7 +340,7 @@ Mô hình khái niệm được vẽ theo ký hiệu EER (Enhanced Entity–Rela
 | FOR_BOOKING / FOR_CLASS | PT_BOOKING hoặc CLASS_SCHEDULE – EQUIPMENT_RESERVATION | 1:N, loại trừ XOR | riêng phần | BR-21, `chk_reservation_source` |
 | CREATED_BY / UPDATED_BY | USER_ACCOUNT – {MEMBER_SUBSCRIPTION, BILLING_LOG, CLASS_SCHEDULE, PT_BOOKING, MAINTENANCE_LOG} | 1:N (5 cặp cùng mẫu) | CREATED_BY toàn phần (NOT NULL); UPDATED_BY riêng phần (NULL được, kèm `updated_at`) | BR-23 |
 
-Năm cặp CREATED_BY/UPDATED_BY không vẽ thành đường trên sơ đồ EER để tránh rối; chúng được ghi trong hộp chú thích cạnh USER_ACCOUNT và thể hiện đầy đủ ở sơ đồ vật lý (10 khóa ngoại `fk_*_created_by`, `fk_*_updated_by`).
+Năm cặp CREATED_BY/UPDATED_BY không vẽ thành đường trên sơ đồ khái niệm để tránh rối; chúng được ghi trong ô chú giải của sơ đồ và thể hiện đầy đủ ở sơ đồ vật lý (10 khóa ngoại `fk_*_created_by`, `fk_*_updated_by`).
 
 **Cung loại trừ (exclusive arc) của EQUIPMENT_RESERVATION.** Mỗi lượt giữ chỗ thiết bị thuộc về đúng một nguồn: hoặc một ca PT_BOOKING hoặc một CLASS_SCHEDULE, không bao giờ cả hai và không bao giờ không có nguồn. Mô hình hóa bằng hai khóa ngoại nullable `booking_id`, `class_id` cùng ràng buộc `chk_reservation_source` (XOR); trên sơ đồ, FOR_BOOKING và FOR_CLASS nối vào vòng tròn XOR rồi vào EQUIPMENT_RESERVATION.
 
@@ -829,7 +829,7 @@ Quản lý phòng tập, lịch lớp nhóm, đăng ký lớp và đặt ca PT 1
 | room_name | VARCHAR(100) | None | No | None | Tên phòng (VD: Phòng Yoga A1, Khu Máy Lưng) |
 | max_capacity | INT | None | No | None | Sức chứa tối đa. `chk_facilities_capacity`: `> 0` (BR-13) |
 | room_type | VARCHAR(50) | None | No | None | Loại phòng (VD: 'Yoga_Studio', 'Gym_Floor'); không có CHECK miền giá trị |
-| status | VARCHAR(20) | None | No | 'Active' | `chk_facilities_status`: `IN ('Active', 'Under_Maintenance', 'Inactive')`; `trg_prevent_class_in_maintenance_room` (BR-19) |
+| status | VARCHAR(20) | None | No | 'Active' | `chk_facilities_status`: `IN ('Active', 'Under_Maintenance', 'Inactive')`; `trg_prevent_class_in_maintenance_room` chỉ cho xếp lớp vào phòng `Active`, `trg_prevent_room_maintenance_with_future_classes` cấm chuyển sang `Under_Maintenance`/`Inactive` khi còn lớp tương lai (BR-19) |
 
 #### 3.4.2. CLASS_SCHEDULE
 
@@ -910,7 +910,7 @@ Quản lý thiết bị, khấu hao, giữ chỗ máy cho buổi tập và nhậ
 | serial_number | VARCHAR(100) | UK | No | None | Mã series duy nhất. `uq_equipment_serial` |
 | purchase_date | DATE | None | No | None | Ngày nhập mua (BR-26) |
 | depreciation_months | INT | None | No | None | Số tháng khấu hao. `chk_equipment_depreciation`: `> 0` (BR-26) |
-| status | VARCHAR(20) | None | No | 'Operational' | `chk_equipment_status`: `IN ('Operational', 'Under_Maintenance', 'Decommissioned')`; `trg_prevent_equipment_reservation_under_maintenance` (BR-19) |
+| status | VARCHAR(20) | None | No | 'Operational' | `chk_equipment_status`: `IN ('Operational', 'Under_Maintenance', 'Decommissioned')`; `trg_prevent_equipment_reservation_under_maintenance` chỉ cho giữ chỗ thiết bị `Operational`, `trg_prevent_equipment_maintenance_with_future_reservations` cấm chuyển sang `Under_Maintenance`/`Decommissioned` khi còn giữ chỗ `Reserved` tương lai (BR-19) |
 
 Chỉ mục: `idx_equipment_status (status)`.
 
@@ -1080,8 +1080,8 @@ Trigger được dùng cho các quy tắc xuyên bảng hoặc phụ thuộc th�
 | `trg_update_remaining_pt_sessions` | `pt_booking` (AFTER UPDATE) | BR-18, BR-25 | Trừ buổi PT khi ca thuộc nhóm tính phí |
 | `trg_check_class_schedule_conflicts` | `class_schedule` (BEFORE I/U) | BR-12, BR-16 | Lớp không trùng ca PT của HLV (BR-12); đổi giờ lớp không làm hội viên đã đăng ký bị trùng lịch (BR-16); trùng phòng do `EXCLUDE` chặn |
 | `trg_check_class_enrollment_conflicts` | `class_enrollment` (BEFORE I/U) | BR-16 | Hội viên không đăng ký lớp trùng giờ với ca PT hoặc lớp khác của mình |
-| `trg_prevent_class_in_maintenance_room`, `trg_prevent_room_maintenance_with_future_classes` | `class_schedule`, `facilities_room` | BR-19 | Không xếp lớp vào phòng đang bảo trì và ngược lại |
-| `trg_check_reservation_window`, `trg_prevent_equipment_reservation_under_maintenance` | `equipment_reservation` (BEFORE I/U) | BR-19, BR-21 | Kiểm tra khung giờ giữ chỗ; không giữ thiết bị đang bảo trì |
+| `trg_prevent_class_in_maintenance_room`, `trg_prevent_room_maintenance_with_future_classes` | `class_schedule`, `facilities_room` | BR-19 | Chỉ xếp lớp vào phòng `Active`; không cho phòng chuyển sang bảo trì/ngừng dùng khi còn lớp tương lai |
+| `trg_check_reservation_window`, `trg_prevent_equipment_reservation_under_maintenance` | `equipment_reservation` (BEFORE I/U) | BR-19, BR-21 | Kiểm tra khung giờ giữ chỗ; chỉ giữ chỗ thiết bị `Operational` (không bảo trì, không thanh lý) |
 | `trg_prevent_equipment_maintenance_with_future_reservations` | `equipment` (BEFORE UPDATE) | BR-19 | Không chuyển bảo trì khi còn giữ chỗ tương lai |
 | `trg_start_equipment_maintenance_insert`, `trg_start_equipment_maintenance_update`, `trg_finish_equipment_maintenance` | `maintenance_log` (AFTER INSERT/UPDATE) | BR-19 | Đồng bộ trạng thái thiết bị theo phiếu bảo trì |
 
@@ -1176,7 +1176,7 @@ Dự án được đóng gói bằng Docker Compose; PostgreSQL tự nạp bốn
 | 3 (tự động) | `Phase 3/04_triggers_views.sql` | 2 view, 31 trigger nghiệp vụ, thủ tục gia hạn, khối kiểm toán dữ liệu mẫu |
 | 4 (tự động) | `Phase 3/08_rbac_security.sql` | Role, tài khoản demo, `GRANT`/`REVOKE`, `SECURITY DEFINER`, 2 event trigger bảo vệ `billing_log` |
 | Thủ công | `Phase 3/03_complex_queries.sql` | 10 truy vấn nâng cao (mục 4.2) |
-| Thủ công | `Phase 3/05_constraint_test_cases.sql` | 109 test ràng buộc và trigger (mục 5.1) |
+| Thủ công | `Phase 3/05_constraint_test_cases.sql` | 114 test ràng buộc và trigger (mục 5.1) |
 | Thủ công | `Phase 3/06_performance_test_cases.sql` | 8 test hiệu năng với 100.000+ bản ghi (mục 4.2) |
 | Thủ công | `Phase 3/09_rbac_test_cases.sql` | 66 test phân quyền (mục 5.2) |
 
@@ -1214,7 +1214,7 @@ Mười truy vấn phức hợp dưới đây chạy trên PostgreSQL 16+ với 
 | Q7 | Hội viên mua gói PT nhưng chưa đặt lịch | LEFT JOIN, `IS NULL` (anti-join) | Chăm sóc hội viên không hoạt động |
 | Q8 | Gói tập được ưa chuộng nhất theo nhóm tuổi | 2 CTE, CASE, `AGE`, `DENSE_RANK() OVER (PARTITION BY …)` | Phân khúc khách hàng cho Marketing |
 | Q9 | Xếp hạng chi tiêu hội viên (VIP tier) | JOIN, GROUP BY, window function `DENSE_RANK() OVER (ORDER BY SUM(…))` | Chính sách ưu đãi hội viên thân thiết |
-| Q10 | Kiểm toán xung đột lịch HLV | CTE, UNION ALL, self-join khoảng thời gian chồng lấn | Toàn vẹn lịch dạy (BR-12, BR-15, BR-16) |
+| Q10 | Kiểm toán xung đột lịch HLV | CTE, UNION ALL, self-join khoảng thời gian chồng lấn | Toàn vẹn lịch dạy của HLV (BR-12) |
 
 #### 4.2.2. Q1 – Doanh thu theo từng gói tập trong quý hiện tại
 
@@ -1570,7 +1570,7 @@ Kết quả: 20 dòng; hạng 1–3 là Kim Cương (VIP Tier 1), hạng 4–8 l
 
 #### 4.2.11. Q10 – Kiểm toán xung đột trùng lịch của huấn luyện viên
 
-Phát hiện mọi cặp sự kiện (lớp nhóm, ca PT 1-1) của cùng một HLV bị chồng lấn thời gian (BR-12, BR-15).
+Phát hiện mọi cặp sự kiện (lớp nhóm, ca PT 1-1) của cùng một HLV bị chồng lấn thời gian (BR-12). Trùng phòng (BR-15) và trùng hội viên (BR-16) đã do `ex_class_room_no_overlap`, `ex_pt_member_no_overlap` và trigger chặn nên không nằm trong truy vấn này.
 
 ```sql
 WITH all_trainer_events AS (
@@ -1594,7 +1594,7 @@ WITH all_trainer_events AS (
     FROM
         pt_booking pb
     WHERE
-        pb.status IN ('Scheduled', 'Completed')
+        pb.status NOT IN ('Cancelled', 'Late_Cancelled')
 )
 SELECT
     e1.trainer_id,
@@ -1673,7 +1673,7 @@ SELECT pg_temp.expect_error('TC-01', 'BR-02',
 
 #### 5.1.2. Kết quả
 
-Kết quả chạy trên PostgreSQL 16: **109 test, 109 đạt, 0 không đạt** (74 test âm TC-xx và 35 test dương TP-xx).
+Kết quả chạy trên PostgreSQL 16: **114 test, 114 đạt, 0 không đạt** (78 test âm TC-xx và 36 test dương TP-xx).
 
 *Bảng 5-1. Tổng hợp kết quả test ràng buộc theo nhóm quy tắc nghiệp vụ*
 
@@ -1697,7 +1697,7 @@ Kết quả chạy trên PostgreSQL 16: **109 test, 109 đạt, 0 không đạt*
 | BR-16 | 6 | 1 | `23P01` | 7/7 PASS |
 | BR-17 | 2 | 0 | `23514` | 2/2 PASS |
 | BR-18 | 8 | 2 | `23514`, `23503`, `P0001` | 10/10 PASS |
-| BR-19 | 5 | 4 | `P0001` | 9/9 PASS |
+| BR-19 | 9 | 5 | `P0001` | 14/14 PASS |
 | BR-20 | 3 | 0 | `23514`, `23503` | 3/3 PASS |
 | BR-21 | 6 | 3 | `23514`, `23P01`, `P0001` | 9/9 PASS |
 | BR-22 | 2 | 0 | `23514`, `23505` | 2/2 PASS |
@@ -1705,9 +1705,9 @@ Kết quả chạy trên PostgreSQL 16: **109 test, 109 đạt, 0 không đạt*
 | BR-24 | 1 | 4 | `P0001` | 5/5 PASS |
 | BR-25 | 2 | 4 | `23514` | 6/6 PASS |
 | BR-26 | 2 | 0 | `23514`, `23505` | 2/2 PASS |
-| **Tổng** | **74** | **35** | | **109/109 PASS** |
+| **Tổng** | **78** | **36** | | **114/114 PASS** |
 
-*Bảng 5-2. Danh sách 109 test case ràng buộc và trigger (SQLSTATE mong đợi trùng SQLSTATE thực tế ở mọi test)*
+*Bảng 5-2. Danh sách 114 test case ràng buộc và trigger (SQLSTATE mong đợi trùng SQLSTATE thực tế ở mọi test)*
 
 | Mã | BR | Kịch bản | SQLSTATE | KQ |
 | --- | --- | --- | --- | --- |
@@ -1820,6 +1820,11 @@ Kết quả chạy trên PostgreSQL 16: **109 test, 109 đạt, 0 không đạt*
 | TP-32 | BR-19 | Chèn nhật ký bảo trì In_Progress tự chuyển thiết bị sang Under_Maintenance (trg_start_equipment_maintenance_insert) | `00000` | PASS |
 | TP-33 | BR-19 | Hoàn tất ca bảo trì duy nhất tự đưa thiết bị về Operational (trg_finish_equipment_maintenance) | `00000` | PASS |
 | TP-34 | BR-19 | Còn ca In_Progress khác thì hoàn tất 1 ca chưa đưa thiết bị về Operational; hoàn tất nốt mới về Operational | `00000` | PASS |
+| TC-75 | BR-19 | Xếp lớp vào phòng ngừng sử dụng - Inactive (trg_prevent_class_in_maintenance_room) | `P0001` | PASS |
+| TC-76 | BR-19 | Giữ chỗ thiết bị đã thanh lý - Decommissioned (trg_prevent_equipment_reservation_under_maintenance) | `P0001` | PASS |
+| TC-77 | BR-19 | Chuyển phòng sang Inactive khi còn lớp học tương lai (trg_prevent_room_maintenance_with_future_classes) | `P0001` | PASS |
+| TC-78 | BR-19 | Thanh lý thiết bị (Decommissioned) khi còn lượt giữ chỗ Reserved tương lai (trg_prevent_equipment_maintenance_with_future_reservations) | `P0001` | PASS |
+| TP-36 | BR-19 | Thiết bị không còn lượt giữ chỗ tương lai được thanh lý (Decommissioned) | `00000` | PASS |
 
 #### 5.1.3. Phạm vi và giới hạn
 

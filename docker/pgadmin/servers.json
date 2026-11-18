@@ -1,0 +1,34 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "FitZone - gym_admin (superuser, xem toàn bộ)",
+      "Group": "Nhóm G9 - Gym Management",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "gym_management",
+      "Username": "gym_admin",
+      "SSLMode": "require",
+      "Comment": "Superuser khởi tạo CSDL: xem được mọi bảng, cột (kể cả password_hash), trigger, view, thủ tục."
+    },
+    "2": {
+      "Name": "FitZone - gym_u_admin (role ứng dụng Admin)",
+      "Group": "Nhóm G9 - Gym Management",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "gym_management",
+      "Username": "gym_u_admin",
+      "SSLMode": "require",
+      "Comment": "Tài khoản web app dùng (gym_role_admin): bị giới hạn theo RBAC, không đọc được password_hash, không sửa/xóa billing_log."
+    },
+    "3": {
+      "Name": "FitZone - gym_u_reception (role Lễ tân)",
+      "Group": "Nhóm G9 - Gym Management",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "gym_management",
+      "Username": "gym_u_reception",
+      "SSLMode": "require",
+      "Comment": "Dùng để thử phân quyền: SELECT password_hash -> permission denied."
+    }
+  }
+}

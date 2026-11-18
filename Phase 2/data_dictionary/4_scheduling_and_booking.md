@@ -12,7 +12,7 @@ Quản lý phòng tập, lịch lớp học nhóm, đăng ký lớp học và đ
 | room_name | VARCHAR(100) | None | No | None | Tên hiển thị của phòng (VD: Phòng Yoga A1, Khu Máy Lưng) |
 | max_capacity | INT | None | No | None | Sức chứa tối đa cùng lúc. `chk_facilities_capacity`: `max_capacity > 0` (BR-13) |
 | room_type | VARCHAR(50) | None | No | None | Loại phòng (VD: 'Yoga_Studio', 'Gym_Floor', 'Boxing_Ring'); không có CHECK miền giá trị |
-| status | VARCHAR(20) | None | No | 'Active' | Trạng thái phòng. `chk_facilities_status`: `IN ('Active', 'Under_Maintenance', 'Inactive')`. Trigger `trg_prevent_class_in_maintenance_room` cấm xếp lớp vào phòng không 'Active' (BR-19) |
+| status | VARCHAR(20) | None | No | 'Active' | Trạng thái phòng. `chk_facilities_status`: `IN ('Active', 'Under_Maintenance', 'Inactive')`. Trigger `trg_prevent_class_in_maintenance_room` cấm xếp lớp vào phòng không 'Active'; trigger `trg_prevent_room_maintenance_with_future_classes` cấm chuyển sang `Under_Maintenance`/`Inactive` khi còn lớp tương lai (BR-19) |
 
 ## Bảng 3.4.2: CLASS_SCHEDULE
 

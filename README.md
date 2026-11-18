@@ -52,6 +52,21 @@ docker compose exec backup verify-pitr.sh       # PITR: bản nền pg_basebacku
 Mở trình duyệt web và truy cập vào địa chỉ:
 👉 **[http://localhost:8501](http://localhost:8501)**
 
+### 2b. Xem CSDL bằng pgAdmin 4
+
+👉 **[http://localhost:5050](http://localhost:5050)** (máy khác trong mạng LAN: `http://<IP-máy-chạy-Docker>:5050`)
+
+- Đăng nhập pgAdmin: `admin@fitzone.com` / `pgadmin_g9_2026` (đổi qua `PGADMIN_EMAIL`, `PGADMIN_PASSWORD` trong `.env`).
+- Nhóm server **"Nhóm G9 - Gym Management"** đã khai báo sẵn 3 kết nối (qua TLS, `SSLMode=require`), khai báo trong `docker/pgadmin/servers.json`:
+
+| Kết nối | Mật khẩu CSDL | Dùng để |
+| :--- | :--- | :--- |
+| `gym_admin` (superuser) | `gym_password_2026` (`POSTGRES_PASSWORD`) | Xem toàn bộ bảng, cột, trigger, view, thủ tục |
+| `gym_u_admin` (role Admin của web app) | `demo_2026` | Thấy đúng quyền của ứng dụng (không đọc `password_hash`, không sửa/xóa `billing_log`) |
+| `gym_u_reception` (role Lễ tân) | `demo_2026` | Thử phân quyền: `SELECT password_hash FROM user_account` → permission denied |
+
+Đường dẫn tới bảng: *Servers → Nhóm G9 - Gym Management → (kết nối) → Databases → gym_management → Schemas → public → Tables*. Chạy SQL: chuột phải `gym_management` → **Query Tool**.
+
 ### 3. Dọn dẹp sạch sẽ 100% (Disposable Teardown)
 Khi hoàn tất kiểm thử hoặc chấm đồ án, bạn chỉ cần chạy lệnh sau để xóa sạch container, mạng và volume dữ liệu mà không để lại bất kỳ rác nào trên máy:
 
@@ -64,7 +79,7 @@ docker compose down -v
 Thư mục `Phase 3/` được mount chỉ-đọc vào `/sql/` trong container CSDL (các script này **không** chạy tự động lúc khởi tạo). Chạy thủ công khi hệ thống đang hoạt động:
 
 ```bash
-# 05 - Kiểm thử ràng buộc & trigger (109 test case)
+# 05 - Kiểm thử ràng buộc & trigger (114 test case)
 docker exec -i fitzone_postgres_db psql -U gym_admin -d gym_management -f /sql/05_constraint_test_cases.sql
 
 # 06 - Kiểm thử hiệu năng (mất khoảng 1 phút)
@@ -184,10 +199,10 @@ Tất cả các truy vấn đều được kiểm thử trên PostgreSQL 16 và 
 - **`trg_update_remaining_pt_sessions` (BR-18, BR-25):** Tự động trừ 1 buổi tập trong `member_subscription` khi ca `pt_booking` chuyển sang `'Completed'`, `'No_Show'` hoặc `'Late_Cancelled'`. Nếu số buổi còn lại `<= 0`, trigger `RAISE EXCEPTION` chặn giao dịch.
 - **`trg_check_pt_booking_creation` (BR-18):** `BEFORE INSERT` trên `pt_booking`: hợp đồng phải `Active`, giờ tập nằm trong thời hạn hợp đồng và số buổi còn lại phải lớn hơn số ca `Scheduled` đang chờ.
 - **`trg_late_cancel_pt_booking` (BR-25):** `BEFORE UPDATE OF status` trên `pt_booking`: hủy ca `Scheduled` khi còn dưới 24 giờ được tự đổi thành `Late_Cancelled` (bị trừ 1 buổi); hủy sớm giữ `Cancelled`.
-- **`trg_prevent_class_in_maintenance_room` (BR-19):** `BEFORE INSERT/UPDATE OF room_id` trên `class_schedule`: chặn xếp lịch lớp học vào Phòng tập đang `Under_Maintenance`.
+- **`trg_prevent_class_in_maintenance_room` (BR-19):** `BEFORE INSERT/UPDATE OF room_id` trên `class_schedule`: chặn xếp lịch lớp học vào Phòng tập không ở trạng thái `Active` (`Under_Maintenance` hoặc `Inactive`).
 - **`trg_prevent_room_maintenance_with_future_classes` / `trg_prevent_equipment_maintenance_with_future_reservations` (BR-19, chiều ngược):** `BEFORE UPDATE OF status` trên `facilities_room` / `equipment`: không cho chuyển phòng hay thiết bị sang `Under_Maintenance` khi còn lớp học sắp diễn ra hoặc lượt giữ chỗ `Reserved` trong tương lai (thông báo cho biết còn bao nhiêu lịch; nhân viên phải dời/hủy trước).
 - **`trg_start_equipment_maintenance_insert/_update` và `trg_finish_equipment_maintenance` (BR-19):** `AFTER` trên `maintenance_log`: mở ca bảo trì `In_Progress` thì thiết bị tự chuyển `Under_Maintenance` (bị chặn nếu còn giữ chỗ tương lai); ca `Completed`/`Cancelled` và không còn ca đang sửa nào khác thì thiết bị tự về `Operational` (trừ `Decommissioned`). Nhờ đó trạng thái thiết bị luôn khớp nhật ký bảo trì.
-- **`trg_prevent_equipment_reservation_under_maintenance` (BR-19, BR-21):** chặn giữ chỗ Máy tập đang `Under_Maintenance`; **`trg_check_reservation_window` (BR-21)** kiểm tra khung giờ giữ chỗ máy.
+- **`trg_prevent_equipment_reservation_under_maintenance` (BR-19, BR-21):** chặn giữ chỗ Máy tập không ở trạng thái `Operational` (`Under_Maintenance` hoặc `Decommissioned`); **`trg_check_reservation_window` (BR-21)** kiểm tra khung giờ giữ chỗ máy.
 - **`trg_require_payment_before_active` / `trg_activate_on_payment_insert` / `_update` (BR-07):** hợp đồng chỉ được `Active` khi có hóa đơn `Completed`; ghi hóa đơn `Completed` sẽ tự chuyển hợp đồng `Pending` → `Active` (và xử lý gia hạn BR-24). Mỗi hội viên chỉ có 1 hợp đồng `Active` (BR-05, ràng buộc `uq_member_one_active_subscription`).
 - **`trg_fill_billing_period_start` (BR-08)** và **`trg_billing_immutable_update/_delete/_truncate` (BR-10):** chu kỳ tính phí duy nhất cho mỗi hóa đơn; `billing_log` là sổ cái bất biến (cấm sửa/xóa/TRUNCATE). BR-10 có bốn lớp: trigger bất biến; chỉ cấp `SELECT, INSERT` (kể cả Admin); mọi đối tượng thuộc role `NOLOGIN` `gym_owner` (không tài khoản đăng nhập nào là chủ sở hữu); event trigger `evt_protect_billing_log`/`evt_protect_billing_log_drop` chặn `ALTER`/`DROP` `billing_log`, trigger và hàm bất biến, kể cả với superuser. Superuser vẫn bảo trì có chủ đích được bằng `ALTER EVENT TRIGGER ... DISABLE` hoặc `SET LOCAL app.allow_billing_maintenance = 'on'` (nạp lại `01`/`04` trên CSDL đã có event trigger cũng cần lối thoát này, xem mục chạy script bên dưới).
 - **`trg_check_class_schedule_conflicts`, `trg_check_pt_booking_conflicts`, `trg_check_class_enrollment_conflicts` (BR-12, BR-15, BR-16):** chặn trùng lịch giữa lớp nhóm, ca PT và đăng ký lớp của cùng HLV/hội viên (bổ trợ cho các `EXCLUDE` constraint trong DDL).
